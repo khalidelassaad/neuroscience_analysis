@@ -4,5 +4,5 @@
 *__pycache__
 *.DS_store
 pyrightconfig.json
-frequency_data
+experiment_data
 graphs
