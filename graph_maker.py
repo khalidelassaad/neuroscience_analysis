@@ -34,7 +34,7 @@ class BaseGraphMaker:
             mouse_experiment_name = self._mouse_experiment_name()
             mouse_experiment_name_str = f"[{mouse_experiment_name}]" if mouse_experiment_name else ""
             print(
-                f"[+]{date_folder_name_str}{mouse_experiment_name_str} Directory made: {self.save_directory}")
+                f"[+]{date_folder_name_str}{mouse_experiment_name_str} {self.log_name} graph directory created:\n\t📊📂\t{self.save_directory}")
         if self.should_save_graphs:
             plt.savefig(self.save_directory / save_file_name)
         if self.should_show_graphs:
@@ -48,6 +48,11 @@ class BaseGraphMaker:
 
 
 class SingleExperimentGraphMaker(BaseGraphMaker):
+    def __init__(self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs):
+        BaseGraphMaker.__init__(
+            self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs)
+        self.log_name = "Single experiment"
+
     def get_frequency_from_experiment_name(self, filename):
         split_filename_list = filename.split("_")
         for file_name_part in split_filename_list:
@@ -217,6 +222,7 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
         self.calculate_amplitude_for_all_experiments()
         self.calculate_amplitude_means_and_sems_per_frequency()
         self.mouse_names = sorted(list(self.mouse_experiments_dict.keys()))
+        self.log_name = "Multiple experiment"
 
     def calculate_amplitude_from_data_dict(self, data_dict):
         stream_dataframe = data_dict["stream_dataframe"]
@@ -368,11 +374,13 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
         map_frequency_to_experiments = self._gather_amplitudes_into_frequency_to_experiments_map()
         text_x_positions = self._get_tick_x_positions(
             self.x_positions, len(self.experiment_names))
+        print(
+            f"[+][{self.date_folder.name}] T-stats and P-values across all experiments:")
         for frequency, map_experiment_to_amplitudes in map_frequency_to_experiments.items():
             amplitude_lists = list(map_experiment_to_amplitudes.values())
             t_stat, p_value = scipy.stats.ttest_ind(*amplitude_lists)
             print(
-                f"[+] {self.date_folder.name}, {frequency}Hz: t_stat:{t_stat:.5f} p_value:{p_value:.5f}")
+                f"\t{frequency}Hz:\tt_stat: {t_stat:.5f}\tp_value: {p_value:.5f}")
             graph_string = self._get_graph_string_from_p_value(p_value)
             frequency_index = self.frequencies.index(frequency)
             plt.text(

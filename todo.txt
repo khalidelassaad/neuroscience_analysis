@@ -1,5 +1,5 @@
-[ ] Make p_value output more easily viewable
-[ ] Show date in output
+[X] Make p_value output more easily viewable
+[X] Show date in output
 [X] Refactor BaseGraphMaker out of both graph makers
 [X] Remove unneeded functions/ files
 [ ] Draft README.md. Document file name and structure dependencies
@@ -7,3 +7,4 @@
 [ ] make all graphs appear in a single folder outside of the data
 [ ] make frequency variable dynamically definable
 [ ] mark/remove hard-coding in multi-graph maker
+[ ] plt.close() after every graph is made to stop the warning?

@@ -79,9 +79,6 @@ class DataToGraphPipeline:
         print(
             f"[+][{self.date_folder.name}][{self.mouse_experiment_name}] Data processing step completed: extracted -> processed")
         self.processed_to_graphs()
-        print(
-            f"[+][{self.date_folder.name}][{self.mouse_experiment_name}] Single experiment graph creation completed.")
-        print(f"[+][{self.date_folder.name}][{self.mouse_experiment_name}] Graph Directory: {self.single_mouse_experiment_graph_maker.save_directory}")
 
 
 if __name__ == "__main__":
