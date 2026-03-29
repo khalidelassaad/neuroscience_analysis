@@ -51,12 +51,13 @@ class DateFolderMultiExperimentProcessor:
             f"log_{mouse_experiment_path.name}.csv"
         with open(csv_path, "w") as csv_file:
             csv_file.writelines(csv_rows)
-        print(f"[+][{mouse_experiment_path.name}] Log file created: {csv_path}")
+        print(
+            f"[+][{self.date_folder.name}][{mouse_experiment_path.name}] Log file created: {csv_path}")
         return csv_path
 
     def run_data_to_graph_pipeline(self, mouse_experiment_name, log_file_path):
         data_to_graph_pipeline = DataToGraphPipeline(
-            data_directory=self.date_folder,
+            date_folder=self.date_folder,
             mouse_experiment_name=mouse_experiment_name,
             log_file_name=log_file_path,
             should_save_graphs=True,

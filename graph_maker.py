@@ -15,6 +15,7 @@ class BaseGraphMaker:
 
     def __init__(self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs):
         self.mouse_experiment_name = mouse_experiment_name
+        self.date_folder = date_folder
         self.mouse_data_directory = date_folder / self.mouse_experiment_name
         self.should_save_graphs = should_save_graphs
         self.should_show_graphs = should_show_graphs
@@ -40,7 +41,7 @@ class BaseGraphMaker:
             plt.show()
 
     def _date_folder_name(self):
-        pass
+        return self.date_folder.name
 
     def _mouse_experiment_name(self):
         return self.mouse_experiment_name
