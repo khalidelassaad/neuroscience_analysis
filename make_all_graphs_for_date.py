@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from multi_experiment_graph_maker import MultiExperimentGraphMaker
+from graph_maker import MultiExperimentGraphMaker
 from raw_data_to_graphs import DataToGraphPipeline
 from dir_utils import get_child_folders
 

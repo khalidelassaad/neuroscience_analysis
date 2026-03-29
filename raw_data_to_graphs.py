@@ -34,7 +34,7 @@ class DataToGraphPipeline:
         self.should_save_graphs = should_save_graphs
         self.should_show_graphs = should_show_graphs
         self.single_mouse_experiment_graph_maker = SingleExperimentGraphMaker(
-            data_directory=data_directory,
+            date_folder=data_directory,
             mouse_experiment_name=mouse_experiment_name,
             should_save_graphs=should_save_graphs,
             should_show_graphs=should_show_graphs)
