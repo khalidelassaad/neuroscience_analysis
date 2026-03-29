@@ -13,10 +13,8 @@ class BaseGraphMaker:
     STREAM_FILES_DIRECTORY = "processed"
     EPOC_FILES_DIRECTORY = "extracted"
 
-    def __init__(self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs):
-        self.mouse_experiment_name = mouse_experiment_name
+    def __init__(self, date_folder, should_save_graphs, should_show_graphs):
         self.date_folder = date_folder
-        self.mouse_data_directory = date_folder / self.mouse_experiment_name
         self.should_save_graphs = should_save_graphs
         self.should_show_graphs = should_show_graphs
         self.save_directory = (self.date_folder / ".." /
@@ -47,8 +45,9 @@ class BaseGraphMaker:
 class SingleExperimentGraphMaker(BaseGraphMaker):
     def __init__(self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs):
         BaseGraphMaker.__init__(
-            self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs)
-        self.log_name = "Single experiment"
+            self, date_folder, should_save_graphs, should_show_graphs)
+        self.mouse_experiment_name = mouse_experiment_name
+        self.mouse_data_directory = date_folder / self.mouse_experiment_name
 
     def get_frequency_from_experiment_name(self, filename):
         split_filename_list = filename.split("_")
@@ -196,11 +195,8 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
     BAR_WIDTH = 0.25
 
     def __init__(self, date_folder, should_save_graphs, should_show_graphs):
-        self.should_save_graphs = should_save_graphs,
-        self.should_show_graphs = should_show_graphs
-        self.date_folder = date_folder
-        self.save_directory = (self.date_folder / ".." /
-                               ".." / "graphs" / self.date_folder.name).resolve()
+        BaseGraphMaker.__init__(
+            self, date_folder, should_save_graphs, should_show_graphs)
         self.mouse_experiment_names = [
             folder.name for folder in get_child_folders(self.date_folder)]
         self.mouse_experiments_dict = {}
