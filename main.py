@@ -1,8 +1,8 @@
 from datetime import datetime
 from pathlib import Path
-from graph_maker import MultiExperimentGraphMaker
-from raw_data_to_graphs import DataToGraphPipeline
-from dir_utils import get_child_folders
+from graph_maker import MultiExperimentGraphMaker, SingleExperimentGraphMaker
+from data_processor import DataProcessor
+from utils import get_child_folders
 
 """
 This code takes as inputs: 
@@ -27,7 +27,6 @@ class DateFolderMultiExperimentProcessor:
     def __init__(self, date_folder, subject_prefix):
         self.date_folder = date_folder
         self.subject_prefix = subject_prefix
-        self.process_mouse_experiments()
 
     def generate_csv_row(self, mouse_experiment_path, raw_experiment_path):
         blockname = raw_experiment_path.name
@@ -55,30 +54,41 @@ class DateFolderMultiExperimentProcessor:
             f"[+][{self.date_folder.name}][{mouse_experiment_path.name}] Log file created: {csv_path}")
         return csv_path
 
-    def run_data_to_graph_pipeline(self, mouse_experiment_name, log_file_path):
-        data_to_graph_pipeline = DataToGraphPipeline(
+    def process_data_for_single_experiment(self, mouse_experiment_name, log_file_path):
+        data_processor = DataProcessor(
             date_folder=self.date_folder,
             mouse_experiment_name=mouse_experiment_name,
-            log_file_name=log_file_path,
-            should_save_graphs=True,
-            should_show_graphs=False)
-        data_to_graph_pipeline.run()
+            log_file_name=log_file_path)
+        data_processor.run()
 
-    def process_mouse_experiments(self):
+    def process_data_for_all_experiments(self):
         for mouse_experiment_path in get_child_folders(self.date_folder):
             raw_data_path = mouse_experiment_path / "raw"
             csv_path = self.generate_csv(mouse_experiment_path, raw_data_path)
-            self.run_data_to_graph_pipeline(
+            self.process_data_for_single_experiment(
                 mouse_experiment_path.name, csv_path)
+
+    def make_all_graphs(self):
+        for mouse_experiment_path in get_child_folders(self.date_folder):
+            single_experiment_graph_maker = SingleExperimentGraphMaker(
+                date_folder=self.date_folder,
+                mouse_experiment_name=mouse_experiment_path.name,
+                should_save_graphs=True,
+                should_show_graphs=False)
+            single_experiment_graph_maker.make_all_graphs()
         multi_experiment_graph_maker = MultiExperimentGraphMaker(
             date_folder=self.date_folder,
             should_save_graphs=True,
             should_show_graphs=False)
         multi_experiment_graph_maker.make_all_graphs()
 
+    def process_and_graph_data(self):
+        self.process_data_for_all_experiments()
+        self.make_all_graphs()
+
 
 if __name__ == "__main__":
     DateFolderMultiExperimentProcessor(
         date_folder=Path(
             f"/Users/khalid/neuroscience_analysis/frequency_data/03242026"),
-        subject_prefix="DATNAC")
+        subject_prefix="DATNAC").process_and_graph_data()

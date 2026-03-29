@@ -4,7 +4,7 @@ import pandas as pd
 import scipy
 import seaborn as sns
 
-from dir_utils import get_child_folders
+from utils import get_child_folders
 
 
 class BaseGraphMaker:
@@ -36,6 +36,8 @@ class BaseGraphMaker:
             plt.savefig(self.save_directory / save_file_name)
         if self.should_show_graphs:
             plt.show()
+        plt.cla()
+        plt.clf()
         plt.close("all")
 
     def _date_folder_name(self):

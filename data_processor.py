@@ -2,7 +2,7 @@ import functions.tdt_analysis
 import functions.py_fp
 from pathlib import Path
 from graph_maker import SingleExperimentGraphMaker
-from dir_utils import HiddenPrints
+from utils import HiddenPrints
 
 
 """
@@ -23,8 +23,8 @@ This code expects the following file structure:
 """
 
 
-class DataToGraphPipeline:
-    def __init__(self, date_folder, mouse_experiment_name, log_file_name, should_save_graphs, should_show_graphs):
+class DataProcessor:
+    def __init__(self, date_folder, mouse_experiment_name, log_file_name):
         self.mouse_experiment_name = mouse_experiment_name
         self.date_folder = date_folder
         self.mouse_data_directory = date_folder / self.mouse_experiment_name
@@ -32,13 +32,6 @@ class DataToGraphPipeline:
         self.raw_directory = self.mouse_data_directory / "raw"
         self.extracted_directory = self.mouse_data_directory / "extracted"
         self.processed_directory = self.mouse_data_directory / "processed"
-        self.should_save_graphs = should_save_graphs
-        self.should_show_graphs = should_show_graphs
-        self.single_mouse_experiment_graph_maker = SingleExperimentGraphMaker(
-            date_folder=date_folder,
-            mouse_experiment_name=mouse_experiment_name,
-            should_save_graphs=should_save_graphs,
-            should_show_graphs=should_show_graphs)
 
     def raw_to_extracted(self):
         if not self.raw_directory.is_dir():
@@ -68,21 +61,6 @@ class DataToGraphPipeline:
             str(self.log_file_path)
         )
 
-    def processed_to_graphs(self):
-        self.single_mouse_experiment_graph_maker.make_all_graphs()
-
     def run(self):
         self.raw_to_extracted()
         self.extracted_to_processed()
-        self.processed_to_graphs()
-
-
-if __name__ == "__main__":
-    data_to_graph_pipeline = DataToGraphPipeline(
-        date_folder=Path(
-            f"/home/khalid/Downloads/path/frequency_data/03242026"),
-        mouse_experiment_name="4022L_ipV",
-        log_file_name="log_4022L_ipV.csv",
-        should_save_graphs=True,
-        should_show_graphs=True)
-    data_to_graph_pipeline.run()

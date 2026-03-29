@@ -1,4 +1,6 @@
-import os, sys
+import os
+import sys
+
 
 def get_child_folders(path):
     return_list = []
@@ -9,6 +11,7 @@ def get_child_folders(path):
             continue
         return_list.append(child_path)
     return return_list
+
 
 class HiddenPrints:
     def __enter__(self):
