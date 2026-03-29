@@ -39,6 +39,7 @@ class BaseGraphMaker:
             plt.savefig(self.save_directory / save_file_name)
         if self.should_show_graphs:
             plt.show()
+        plt.close("all")
 
     def _date_folder_name(self):
         return self.date_folder.name

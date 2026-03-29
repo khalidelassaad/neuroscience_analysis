@@ -73,11 +73,7 @@ class DataToGraphPipeline:
 
     def run(self):
         self.raw_to_extracted()
-        print(
-            f"[+][{self.date_folder.name}][{self.mouse_experiment_name}] Data processing step completed: raw -> extracted")
         self.extracted_to_processed()
-        print(
-            f"[+][{self.date_folder.name}][{self.mouse_experiment_name}] Data processing step completed: extracted -> processed")
         self.processed_to_graphs()
 
 
