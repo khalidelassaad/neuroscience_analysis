@@ -1,0 +1,7 @@
+.ipynb_checkpoints
+.venv
+.vscode
+*__pycache__
+*.DS_store
+pyrightconfig.json
+frequency_data

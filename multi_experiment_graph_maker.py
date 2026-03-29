@@ -1,0 +1,240 @@
+from pathlib import Path
+from dir_utils import get_child_folders
+from graph_maker import GraphMaker
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+import seaborn as sns
+import scipy.stats
+
+def extract_aligned(df, t0, t_window):
+    """Interpolate signal onto a time axis relative to event t0."""
+    t_rel = df['time'].to_numpy() - t0
+    sig   = df['delta_signal_poly_zscore'].to_numpy()
+    return np.interp(t_window, t_rel, sig, left=np.nan, right=np.nan)
+
+class MultiExperimentGraphMaker:
+    # Makes the graphs that show data from multiple mouse-experiments for a given day
+    # This script assumes that the folder for each mouse-experiment follows the
+    # following naming convention:
+    #       <mouse_name>_<experiment_name>
+    # There should only be ONE underscore in the folder name
+    BAR_WIDTH = 0.25
+
+    def __init__(self, date_folder, should_save_graphs, should_show_graphs):
+        self.should_save_graphs=should_save_graphs,
+        self.should_show_graphs=should_show_graphs
+        self.date_folder = date_folder
+        self.save_directory = self.date_folder / "graphs"
+        self.mouse_experiment_names = [folder.name for folder in get_child_folders(self.date_folder)]
+        self.mouse_experiments_dict = {}
+        for mouse_experiment_name in self.mouse_experiment_names:
+            mouse_name, experiment_name = mouse_experiment_name.split("_")
+            if self.mouse_experiments_dict.get(mouse_name) is None:
+                self.mouse_experiments_dict[mouse_name] = {}
+            graph_maker = GraphMaker(
+                data_directory=self.date_folder,
+                mouse_experiment_name=mouse_experiment_name,
+                should_save_graphs=False,
+                should_show_graphs=False)
+            data_dicts = graph_maker.get_data_dicts()
+            self.mouse_experiments_dict[mouse_name][experiment_name] = data_dicts
+            # self.mouse_experiments_dict["5742L"]["ipV"][0].keys()
+            # dict_keys(['experiment_name', 'frequency', 'stream_dataframe', 'epoc_dataframe'])
+        self.calculate_amplitude_for_all_experiments()
+        self.calculate_amplitude_means_and_sems_per_frequency()
+        self.mouse_names = sorted(list(self.mouse_experiments_dict.keys()))
+
+    def save_and_show_graph(self, save_file_name):
+        if not self.save_directory.is_dir():
+            self.save_directory.mkdir()
+            print(f"Directory made: {self.save_directory}")
+        if self.should_save_graphs:
+            plt.savefig(self.save_directory / save_file_name)
+        if self.should_show_graphs:
+            plt.show()
+
+    def calculate_amplitude_from_data_dict(self, data_dict):
+        stream_dataframe = data_dict["stream_dataframe"]
+        epoc_dataframe = data_dict["epoc_dataframe"]
+        epocs = epoc_dataframe[epoc_dataframe["name"] == "PtC0"]
+        t_pre  = 5.0
+        t_post = 20
+        dt = np.median(np.diff(stream_dataframe['time'].to_numpy()))
+        t_window = np.arange(-t_pre, t_post, dt)
+        R_trials = []
+        for _, ev in epocs.iterrows():
+            t0 = ev['onset']  # align to onset
+            R_trials.append(extract_aligned(stream_dataframe, t0, t_window))
+        R_trials = np.vstack(R_trials)  # shape: n_trials x n_timepoints
+        # mean across trials (ignore NaNs at edges if any)
+        R_mean = np.nanmean(R_trials, axis=0)
+        # optional: SEM
+        R_sem = np.nanstd(R_trials, axis=0) / np.sqrt(R_trials.shape[0])
+        # amplitude
+        R_max = np.nanmax (R_trials)
+        R_min = np.nanmin(R_trials)
+        R_amp = np.abs(R_max - R_min)
+        return R_amp
+            
+    def calculate_amplitude_for_all_experiments(self):
+        for mouse_name, experiments_dict in self.mouse_experiments_dict.items():
+            for experiment_name, data_dicts in experiments_dict.items():
+                for data_dict in data_dicts:
+                    data_dict["amplitude"] = self.calculate_amplitude_from_data_dict(data_dict)
+
+    def calculate_amplitude_means_and_sems_per_frequency(self):
+        self.experiment_frequency_data_dict = {}
+        for mouse_name, experiments_dict in self.mouse_experiments_dict.items():
+            for experiment_name, data_dicts in experiments_dict.items():
+                for data_dict in data_dicts:
+                    amplitude = data_dict["amplitude"]
+                    frequency = data_dict["frequency"]
+                    if self.experiment_frequency_data_dict.get(experiment_name) is None:
+                        self.experiment_frequency_data_dict[experiment_name] = {}
+                    if self.experiment_frequency_data_dict[experiment_name].get(frequency) is None:
+                        self.experiment_frequency_data_dict[experiment_name][frequency] = {
+                            "amplitudes" : {}
+                        }
+                    self.experiment_frequency_data_dict[experiment_name][frequency]["amplitudes"][mouse_name] = amplitude
+        for experiment_name, frequency_data_dict in self.experiment_frequency_data_dict.items():
+            for frequency, data_dict in frequency_data_dict.items():
+                data_dict["mean"] = np.mean(list(data_dict["amplitudes"].values()))
+                data_dict["sem"] = scipy.stats.sem(list(data_dict["amplitudes"].values()))
+
+    def _graph_bars(self, frequency_data_dict, x_positions, experiment_index, experiment_name):
+        graph_offset = MultiExperimentGraphMaker.BAR_WIDTH * experiment_index
+        for frequency, data_dict in frequency_data_dict.items():
+            frequency_index = self.frequencies.index(frequency)
+            white = 15
+            color = white - 2 * experiment_index
+            str_color = "#" + (f"{color:x}" * 3)
+            plt.bar(
+                x_positions[frequency_index] + graph_offset, 
+                data_dict["mean"], 
+                linewidth=1, 
+                label=f"{frequency} Hz",
+                yerr=data_dict["sem"],
+                capsize=5,
+                width=MultiExperimentGraphMaker.BAR_WIDTH,
+                color=str_color,
+                edgecolor='black')
+            plt.text(x_positions[frequency_index] + graph_offset, 
+                0.1, 
+                experiment_name, 
+                ha='center', 
+                va='bottom',
+                color='black')
+
+    def _graph_dots_and_lines(self, experiment_names, mouse_name):
+        for frequency_index, frequency in enumerate(self.frequencies):
+            x_values = []
+            y_values = []
+            for experiment_index, experiment_name in enumerate(experiment_names):
+                graph_offset = MultiExperimentGraphMaker.BAR_WIDTH * experiment_index
+                x_values.append(frequency_index + graph_offset * experiment_index)
+                y_value = self.experiment_frequency_data_dict[experiment_name][frequency]["amplitudes"][mouse_name]
+                y_values.append(y_value)
+            plt.plot(
+                x_values,
+                y_values,
+                marker='o',
+                markersize=3,
+                color=f"C{self.mouse_names.index(mouse_name)}"
+            )
+
+    def _get_tick_x_positions(self, x_positions, number_of_experiments):
+        tick_x_positions = [x - MultiExperimentGraphMaker.BAR_WIDTH * 0.5 for x in x_positions]
+        tick_x_positions = [x + MultiExperimentGraphMaker.BAR_WIDTH * (number_of_experiments / 2) for x in tick_x_positions]
+        return tick_x_positions
+    
+    def _generate_mouse_legend(self):
+        handles = []
+        for i, mouse in enumerate(self.mouse_names):
+            mouse_line = plt.Line2D(
+                [0], [0], 
+                marker='o', 
+                color=f"C{i}", 
+                markersize=3, 
+                label=mouse)
+            handles.append(mouse_line)
+        plt.legend(
+            handles=handles, 
+            loc="upper right",
+            bbox_to_anchor=(1.13, 1))
+    
+    def _gather_amplitudes_into_frequency_to_experiments_map(self):
+        map_frequency_to_experiments = {}
+        for experiment_name, frequency_data_dict in self.experiment_frequency_data_dict.items():
+            for frequency in self.frequencies:
+                data_dict = frequency_data_dict[frequency]
+                amplitudes = [value for _, value in data_dict["amplitudes"].items()]
+                if map_frequency_to_experiments.get(frequency) is None:
+                    map_frequency_to_experiments[frequency] = {}
+                map_experiments_to_amplitudes = map_frequency_to_experiments[frequency]
+                map_experiments_to_amplitudes[experiment_name] = amplitudes
+        return map_frequency_to_experiments
+
+    def _get_graph_string_from_p_value(self, p_value):
+        if p_value < 0.001:
+            graph_string = '***'
+        elif p_value < 0.01:
+            graph_string = '**'
+        elif p_value < 0.05:
+            graph_string = '*'
+        else:
+            graph_string = ''
+        return graph_string
+
+    def _generate_stats(self):
+        map_frequency_to_experiments = self._gather_amplitudes_into_frequency_to_experiments_map()
+        text_x_positions = self._get_tick_x_positions(self.x_positions, len(self.experiment_names))
+        for frequency, map_experiment_to_amplitudes in map_frequency_to_experiments.items():
+            amplitude_lists = list(map_experiment_to_amplitudes.values())
+            t_stat, p_value = scipy.stats.ttest_ind(*amplitude_lists)
+            print(f"[+] {self.date_folder.name}, {frequency}Hz: t_stat:{t_stat:.5f} p_value:{p_value:.5f}")
+            graph_string = self._get_graph_string_from_p_value(p_value)
+            frequency_index = self.frequencies.index(frequency)
+            plt.text(
+                text_x_positions[frequency_index], 
+                9, 
+                graph_string, 
+                ha='center', 
+                va='bottom',
+                color='black')
+
+    def graph_all_z_score_differences_across_frequency(self):
+        plt.figure(figsize=(8, 4))
+        self.x_positions = [0, 1, 2]
+        self.frequencies = [5, 10, 20]
+        self.experiment_names = list(self.experiment_frequency_data_dict.keys())
+        for experiment_name in self.experiment_names:
+            frequency_data_dict = self.experiment_frequency_data_dict[experiment_name]
+            experiment_index = self.experiment_names.index(experiment_name)
+            self._graph_bars(frequency_data_dict, self.x_positions, experiment_index, experiment_name)
+        for mouse_name in self.mouse_names:
+            self._graph_dots_and_lines(self.experiment_names, mouse_name)
+        plt.xlabel('Frequency (Hz)', fontsize=12)
+        plt.ylabel('Z-score difference', fontsize=12)
+        plt.ylim(0, 10)  
+        # plt.title(f"{self.date_folder.name}", fontsize=12)
+        plt.xticks(
+            self._get_tick_x_positions(self.x_positions, len(self.experiment_names)), 
+            self.frequencies)
+        self._generate_mouse_legend()
+        self._generate_stats()
+        sns.despine()
+        self.save_and_show_graph(f"{self.date_folder.name}_amplitude_comparison_across_frequencies")
+
+    def make_all_graphs(self):
+        self.graph_all_z_score_differences_across_frequency()
+
+if __name__ == "__main__":
+    MultiExperimentGraphMaker(
+        date_folder=Path(f"/Users/cerahassinan/Downloads/nape_tidy_photom_tools-main/path/frequency_data/03192026"),
+        should_save_graphs=True,
+        should_show_graphs=False).make_all_graphs()
+    MultiExperimentGraphMaker(
+        date_folder=Path(f"/Users/cerahassinan/Downloads/nape_tidy_photom_tools-main/path/frequency_data/03242026"),
+        should_save_graphs=True,
+        should_show_graphs=False).make_all_graphs()
