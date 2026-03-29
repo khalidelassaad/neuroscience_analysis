@@ -37,15 +37,18 @@ class DateFolderMultiExperimentProcessor:
         csv_date_string = datetime.strftime(date_object, "%-m/%-d/%y")
         mouse_experiment = mouse_experiment_path.name
         subject = f"{self.subject_prefix}_{mouse_experiment}"
-        csv_row = CSV_ROW_TEMPLATE_STRING.format(subject, csv_date_string, blockname)
+        csv_row = CSV_ROW_TEMPLATE_STRING.format(
+            subject, csv_date_string, blockname)
         return csv_row
-    
+
     def generate_csv(self, mouse_experiment_path, raw_data_path):
         csv_rows = [CSV_HEADER_STRING]
         for raw_experiment_path in get_child_folders(raw_data_path):
-            csv_row = self.generate_csv_row(mouse_experiment_path, raw_experiment_path)
+            csv_row = self.generate_csv_row(
+                mouse_experiment_path, raw_experiment_path)
             csv_rows.append(csv_row)
-        csv_path = mouse_experiment_path / f"log_{mouse_experiment_path.name}.csv"
+        csv_path = mouse_experiment_path / \
+            f"log_{mouse_experiment_path.name}.csv"
         with open(csv_path, "w") as csv_file:
             csv_file.writelines(csv_rows)
         print(f"[+][{mouse_experiment_path.name}] Log file created: {csv_path}")
@@ -64,7 +67,8 @@ class DateFolderMultiExperimentProcessor:
         for mouse_experiment_path in get_child_folders(self.date_folder):
             raw_data_path = mouse_experiment_path / "raw"
             csv_path = self.generate_csv(mouse_experiment_path, raw_data_path)
-            self.run_data_to_graph_pipeline(mouse_experiment_path.name, csv_path)
+            self.run_data_to_graph_pipeline(
+                mouse_experiment_path.name, csv_path)
         multi_experiment_graph_maker = MultiExperimentGraphMaker(
             date_folder=self.date_folder,
             should_save_graphs=True,
@@ -74,5 +78,6 @@ class DateFolderMultiExperimentProcessor:
 
 if __name__ == "__main__":
     DateFolderMultiExperimentProcessor(
-        date_folder=Path(f"/home/khalid/Downloads/path/frequency_data/03242026"),
+        date_folder=Path(
+            f"/Users/khalid/neuroscience_analysis/frequency_data/03242026"),
         subject_prefix="DATNAC")
