@@ -5,3 +5,4 @@
 *.DS_store
 pyrightconfig.json
 frequency_data
+graphs

@@ -4,7 +4,7 @@
 [X] Remove unneeded functions/ files
 [ ] Draft README.md. Document file name and structure dependencies
 [ ] Rename all files to something more useful
-[ ] make all graphs appear in a single folder outside of the data
+[X] make all graphs appear in a single folder outside of the data
 [ ] make frequency variable dynamically definable
 [ ] mark/remove hard-coding in multi-graph maker
 [X] plt.close() after every graph is made to stop the warning?

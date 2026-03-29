@@ -19,7 +19,8 @@ class BaseGraphMaker:
         self.mouse_data_directory = date_folder / self.mouse_experiment_name
         self.should_save_graphs = should_save_graphs
         self.should_show_graphs = should_show_graphs
-        self.save_directory = self.mouse_data_directory / "graphs"
+        self.save_directory = (self.date_folder / ".." /
+                               ".." / "graphs" / self.date_folder.name).resolve()
 
     def extract_aligned(self, df, t0, t_window):
         t_rel = df['time'].to_numpy() - t0
@@ -28,13 +29,11 @@ class BaseGraphMaker:
 
     def save_and_show_graph(self, save_file_name):
         if not self.save_directory.is_dir():
-            self.save_directory.mkdir()
+            self.save_directory.mkdir(parents=True)
             date_folder_name = self._date_folder_name()
             date_folder_name_str = f"[{date_folder_name}]" if date_folder_name else ""
-            mouse_experiment_name = self._mouse_experiment_name()
-            mouse_experiment_name_str = f"[{mouse_experiment_name}]" if mouse_experiment_name else ""
             print(
-                f"[+]{date_folder_name_str}{mouse_experiment_name_str} {self.log_name} graph directory created:\n\t📊📂\t{self.save_directory}")
+                f"[+]{date_folder_name_str} Graph directory created:\n\t📊📂\t{self.save_directory}")
         if self.should_save_graphs:
             plt.savefig(self.save_directory / save_file_name)
         if self.should_show_graphs:
@@ -43,9 +42,6 @@ class BaseGraphMaker:
 
     def _date_folder_name(self):
         return self.date_folder.name
-
-    def _mouse_experiment_name(self):
-        return self.mouse_experiment_name
 
 
 class SingleExperimentGraphMaker(BaseGraphMaker):
@@ -203,7 +199,8 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
         self.should_save_graphs = should_save_graphs,
         self.should_show_graphs = should_show_graphs
         self.date_folder = date_folder
-        self.save_directory = self.date_folder / "graphs"
+        self.save_directory = (self.date_folder / ".." /
+                               ".." / "graphs" / self.date_folder.name).resolve()
         self.mouse_experiment_names = [
             folder.name for folder in get_child_folders(self.date_folder)]
         self.mouse_experiments_dict = {}
@@ -218,8 +215,6 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
                 should_show_graphs=False)
             data_dicts = graph_maker.get_data_dicts()
             self.mouse_experiments_dict[mouse_name][experiment_name] = data_dicts
-            # self.mouse_experiments_dict["5742L"]["ipV"][0].keys()
-            # dict_keys(['experiment_name', 'frequency', 'stream_dataframe', 'epoc_dataframe'])
         self.calculate_amplitude_for_all_experiments()
         self.calculate_amplitude_means_and_sems_per_frequency()
         self.mouse_names = sorted(list(self.mouse_experiments_dict.keys()))
@@ -278,9 +273,6 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
                     list(data_dict["amplitudes"].values()))
                 data_dict["sem"] = scipy.stats.sem(
                     list(data_dict["amplitudes"].values()))
-
-    def _mouse_experiment_name(self):
-        return None
 
     def _graph_bars(self, frequency_data_dict, x_positions, experiment_index, experiment_name):
         graph_offset = MultiExperimentGraphMaker.BAR_WIDTH * experiment_index
