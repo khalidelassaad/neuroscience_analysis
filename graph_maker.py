@@ -28,11 +28,22 @@ class BaseGraphMaker:
     def save_and_show_graph(self, save_file_name):
         if not self.save_directory.is_dir():
             self.save_directory.mkdir()
-            print(f"Directory made: {self.save_directory}")
+            date_folder_name = self._date_folder_name()
+            date_folder_name_str = f"[{date_folder_name}]" if date_folder_name else ""
+            mouse_experiment_name = self._mouse_experiment_name()
+            mouse_experiment_name_str = f"[{mouse_experiment_name}]" if mouse_experiment_name else ""
+            print(
+                f"[+]{date_folder_name_str}{mouse_experiment_name_str} Directory made: {self.save_directory}")
         if self.should_save_graphs:
             plt.savefig(self.save_directory / save_file_name)
         if self.should_show_graphs:
             plt.show()
+
+    def _date_folder_name(self):
+        pass
+
+    def _mouse_experiment_name(self):
+        return self.mouse_experiment_name
 
 
 class SingleExperimentGraphMaker(BaseGraphMaker):
@@ -259,6 +270,9 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
                     list(data_dict["amplitudes"].values()))
                 data_dict["sem"] = scipy.stats.sem(
                     list(data_dict["amplitudes"].values()))
+
+    def _mouse_experiment_name(self):
+        return None
 
     def _graph_bars(self, frequency_data_dict, x_positions, experiment_index, experiment_name):
         graph_offset = MultiExperimentGraphMaker.BAR_WIDTH * experiment_index
