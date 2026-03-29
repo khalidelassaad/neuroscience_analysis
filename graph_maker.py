@@ -1,25 +1,10 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
-from pathlib import Path
-
-"""
-This code takes as inputs: 
-    `data_directory`
-    `mouse`
-
-This code expects the following file structure:
-
-📂 `data_directory`/        # directory containing data of all the mice
-+-- 📂 `mouse`/             # directory containing data of a specific mouse
-    +-- 📂 `processed`/     # directory containing mouse's processed data
-    +-- 📂🆕 `graphs`/      # NEW: directory will be created, containing mouse's graphs
-"""
 
 
-class SingleExperimentGraphMaker:
-    # One instance per mouse
+class BaseGraphMaker:
     STREAM_FILES_SUFFIX = "_streams_session.feather"
     EPOC_FILES_SUFFIX = "_epocs_data.feather"
     STREAM_FILES_DIRECTORY = "processed"
@@ -37,6 +22,17 @@ class SingleExperimentGraphMaker:
         sig = df['delta_signal_poly_zscore'].to_numpy()
         return np.interp(t_window, t_rel, sig, left=np.nan, right=np.nan)
 
+    def save_and_show_graph(self, save_file_name):
+        if not self.save_directory.is_dir():
+            self.save_directory.mkdir()
+            print(f"Directory made: {self.save_directory}")
+        if self.should_save_graphs:
+            plt.savefig(self.save_directory / save_file_name)
+        if self.should_show_graphs:
+            plt.show()
+
+
+class SingleExperimentGraphMaker(BaseGraphMaker):
     def get_frequency_from_experiment_name(self, filename):
         split_filename_list = filename.split("_")
         for file_name_part in split_filename_list:
@@ -185,13 +181,3 @@ class SingleExperimentGraphMaker:
             self.graph_z_score_and_laser_bursts_over_time(data_dict)
             self.graph_z_score_with_trials(data_dict)
         self.graph_all_z_scores_overlaid(data_dicts)
-
-
-if __name__ == "__main__":
-    graph_maker = SingleExperimentGraphMaker(
-        data_directory=Path(f"/home/khalid/Downloads/path/frequency_data"),
-        mouse_experiment_name="5741L",
-        should_save_graphs=True,
-        should_show_graphs=False
-    )
-    graph_maker.make_all_graphs()

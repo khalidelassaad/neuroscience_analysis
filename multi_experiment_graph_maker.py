@@ -1,6 +1,6 @@
 from pathlib import Path
 from dir_utils import get_child_folders
-from single_experiment_graph_maker import SingleExperimentGraphMaker
+from graph_maker import SingleExperimentGraphMaker
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np

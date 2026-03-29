@@ -1,7 +1,7 @@
 import functions.tdt_analysis
 import functions.py_fp
 from pathlib import Path
-from single_experiment_graph_maker import SingleExperimentGraphMaker
+from graph_maker import SingleExperimentGraphMaker
 from dir_utils import HiddenPrints
 
 
