@@ -1,3 +1,2 @@
 [ ] parameterize frequency variable instead of hard-coding
 [ ] mark/remove hard-coding in multi-graph maker
-[ ] plt.close() after every graph is made to stop the warning?

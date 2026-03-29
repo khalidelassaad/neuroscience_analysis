@@ -1,18 +1,17 @@
 # Add the parent directory to sys.path if not already present
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import HuberRegressor
+from typing import List, Union
+import matplotlib.pyplot as plt
+from . import general
+from .general import get_event_bouts, dir_diff, plot_dataframe_over_time, to_frame
+import numpy as np
+import pandas as pd
 import os
 import sys
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
-
-import pandas as pd
-import numpy as np
-from .general import get_event_bouts, dir_diff, plot_dataframe_over_time, to_frame
-from . import general
-import matplotlib.pyplot as plt
-from typing import List, Union
-from sklearn.linear_model import HuberRegressor
-from sklearn.preprocessing import PolynomialFeatures
 
 
 def load_data(basepath):
@@ -23,7 +22,8 @@ def load_data(basepath):
                 return pd.read_feather(file)
             else:
                 return pd.read_csv(file)
-    raise FileNotFoundError(f"No CSV or Feather file found for base name: {basepath}")
+    raise FileNotFoundError(
+        f"No CSV or Feather file found for base name: {basepath}")
 
 
 def fp_moving_average(streams_data, streams_info, smoothing_window) -> pd.DataFrame:
@@ -74,10 +74,12 @@ def fp_moving_average(streams_data, streams_info, smoothing_window) -> pd.DataFr
         )
 
         # Append to result
-        streams_data_smoothed = pd.concat([streams_data_smoothed, streams_data_loop], ignore_index=True)
+        streams_data_smoothed = pd.concat(
+            [streams_data_smoothed, streams_data_loop], ignore_index=True)
 
     # Filter out rows where smoothing could not be computed (to match R behavior)
-    streams_data_smoothed = streams_data_smoothed.dropna(subset=['au_smooth_ma'])
+    streams_data_smoothed = streams_data_smoothed.dropna(
+        subset=['au_smooth_ma'])
 
     return streams_data_smoothed
 
@@ -89,16 +91,20 @@ def fp_moving_zscore(streams: pd.DataFrame, pre_window: int) -> pd.DataFrame:
     # - streams (must contain time, fiber_id, signal_wavelength, and delta_signal_poly_zscore)
     # - pre_window number of samples prior for canculating zscore
 
-    temp_moving_zscore = streams[streams['blockname'] != streams['blockname']].loc[:, ['blockname', 'channel_id', 'time']]
-    streams_to_process = streams.loc[:, ['blockname', 'fiber_id', 'signal_wavelength']].drop_duplicates()
+    temp_moving_zscore = streams[streams['blockname'] != streams['blockname']].loc[:, [
+        'blockname', 'channel_id', 'time']]
+    streams_to_process = streams.loc[:, [
+        'blockname', 'fiber_id', 'signal_wavelength']].drop_duplicates()
 
     for n_stream in range(len(streams_to_process)):
         # Filter data for a particular stream
-        temp_stream = streams_to_process.iloc[n_stream].merge(streams, on=['blockname', 'fiber_id', 'signal_wavelength'])
-        
+        temp_stream = streams_to_process.iloc[n_stream].merge(
+            streams, on=['blockname', 'fiber_id', 'signal_wavelength'])
+
         # Calculate z-score for each data point in the stream
         for n_sample in range(pre_window, len(temp_stream)):
-            pre_window_data = temp_stream.iloc[(n_sample - pre_window):n_sample]['delta_signal_poly_zscore']
+            pre_window_data = temp_stream.iloc[(
+                n_sample - pre_window):n_sample]['delta_signal_poly_zscore']
             pre_window_mu = pre_window_data.mean()
             pre_window_sd = pre_window_data.std()
 
@@ -112,10 +118,13 @@ def fp_moving_zscore(streams: pd.DataFrame, pre_window: int) -> pd.DataFrame:
 
             temp_moving_zscore = pd.concat([temp_moving_zscore, temp_loop])
 
-    streams = streams.merge(temp_moving_zscore, on=['blockname', 'time', 'channel_id'])
-    streams['delta_signal_poly_zscore'] = (streams['delta_signal_poly_zscore'] - streams['pre_window_mu']) / streams['pre_window_sd']
+    streams = streams.merge(temp_moving_zscore, on=[
+                            'blockname', 'time', 'channel_id'])
+    streams['delta_signal_poly_zscore'] = (
+        streams['delta_signal_poly_zscore'] - streams['pre_window_mu']) / streams['pre_window_sd']
 
     return streams
+
 
 def fp_streams_fitted(streams_data: pd.DataFrame, streams_info: pd.DataFrame, signal_id: int, control_id: int, poly_degree_fitted_control: int, poly_degree_polyfit: int, trim_time: float, fit_model: str) -> pd.DataFrame:
     # returns fits and fitted subtractions of data within streams_data.
@@ -152,25 +161,27 @@ def fp_streams_fitted(streams_data: pd.DataFrame, streams_info: pd.DataFrame, si
     else:
         fp_value = 'raw_au'
 
-
-    streams_data_merged = streams_data[['blockname', 'channel', fp_value]].merge(streams_info[['blockname', 'fs']].drop_duplicates(), on='blockname')
-    streams_data_grouped = streams_data_merged.groupby(['blockname', 'channel'], group_keys=False, as_index=False) # This line and the one below removed the channel column
+    streams_data_merged = streams_data[['blockname', 'channel', fp_value]].merge(
+        streams_info[['blockname', 'fs']].drop_duplicates(), on='blockname')
+    # This line and the one below removed the channel column
+    streams_data_grouped = streams_data_merged.groupby(
+        ['blockname', 'channel'], group_keys=False, as_index=False)
     streams_data_applied = streams_data_grouped.apply(lambda x: x.reset_index(drop=True).assign(
-            time=(np.arange(len(x)) + 1) / x['fs'].iloc[0],
-            blockname = x.name[0],
-            channel = x.name[1]
-        )
+        time=(np.arange(len(x)) + 1) / x['fs'].iloc[0],
+        blockname=x.name[0],
+        channel=x.name[1]
+    )
     )
     streams_data_reset = streams_data_applied.reset_index(drop=True)
     streams_data = streams_data_reset
 
-
-    streams_data = fp_identify_fibers(streams_data, 'channel') # However, this line EXPECTS the channel column to be present!
+    # However, this line EXPECTS the channel column to be present!
+    streams_data = fp_identify_fibers(streams_data, 'channel')
 
     streams_info_fiber_ids = (streams_info[['blockname', 'name']].drop_duplicates()
-        .assign(photodetector_id=lambda x: x['name'].str.replace('[0-9]+', '', regex=True))
-        .assign(photodetector_id=lambda x: x['photodetector_id'].str.replace('_', '', regex=True))
-        .pipe(fp_identify_fibers, 'photodetector_id'))
+                              .assign(photodetector_id=lambda x: x['name'].str.replace('[0-9]+', '', regex=True))
+                              .assign(photodetector_id=lambda x: x['photodetector_id'].str.replace('_', '', regex=True))
+                              .pipe(fp_identify_fibers, 'photodetector_id'))
 
     fiber_ids = streams_info_fiber_ids['fiber_id'].unique()
     streams_data_processed = None
@@ -179,8 +190,10 @@ def fp_streams_fitted(streams_data: pd.DataFrame, streams_info: pd.DataFrame, si
         if streams_data['fiber_id'].str.contains(fiber_id_loop).sum() > 0:
             # print(f'     > processing fiber number {fiber_id_loop}')
 
-            loop_data: pd.DataFrame = streams_data.loc[(streams_data['fiber_id'].str.contains(fiber_id_loop))]
-            loop_data = to_frame(loop_data[['blockname', 'time', 'channel', 'fiber_id', fp_value]])
+            loop_data: pd.DataFrame = streams_data.loc[(
+                streams_data['fiber_id'].str.contains(fiber_id_loop))]
+            loop_data = to_frame(
+                loop_data[['blockname', 'time', 'channel', 'fiber_id', fp_value]])
             loop_data.reset_index(drop=True, inplace=True)
 
             # temp_end_time = loop_data['time'].reset_index(drop=True).iloc[-1]
@@ -190,26 +203,33 @@ def fp_streams_fitted(streams_data: pd.DataFrame, streams_info: pd.DataFrame, si
             loop_data = loop_data[loop_data['time'] > trim_time].reset_index()
 
             # Separate out channel into signal and control columns; reset index for fitting
-            time = loop_data.loc[loop_data['channel'].astype(str).str.contains(str(signal_id))]['time'].reset_index(drop=True)
-            signal = loop_data.loc[loop_data['channel'].astype(str).str.contains(str(signal_id))][fp_value].reset_index(drop=True)
-            control = loop_data.loc[loop_data['channel'].astype(str).str.contains(str(control_id))][fp_value].reset_index(drop=True)
+            time = loop_data.loc[loop_data['channel'].astype(str).str.contains(
+                str(signal_id))]['time'].reset_index(drop=True)
+            signal = loop_data.loc[loop_data['channel'].astype(str).str.contains(
+                str(signal_id))][fp_value].reset_index(drop=True)
+            control = loop_data.loc[loop_data['channel'].astype(str).str.contains(
+                str(control_id))][fp_value].reset_index(drop=True)
 
             # Add warning if signal_id or control_id is not present in channel column
             channel_values = loop_data['channel'].astype(str).values
             if not any(str(signal_id) in ch for ch in channel_values):
-                print(f"[-] extracted_to_processed: WARNING: signal_id {signal_id} not found in channel column for fiber {fiber_id_loop} in block {loop_data['blockname'].iloc[0]}")
+                print(
+                    f"[-] extracted_to_processed: WARNING: signal_id {signal_id} not found in channel column for fiber {fiber_id_loop} in block {loop_data['blockname'].iloc[0]}")
             if not any(str(control_id) in ch for ch in channel_values):
-                print(f"[-] extracted_to_processed: WARNING: control_id {control_id} not found in channel column for fiber {fiber_id_loop} in block {loop_data['blockname'].iloc[0]}")
+                print(
+                    f"[-] extracted_to_processed: WARNING: control_id {control_id} not found in channel column for fiber {fiber_id_loop} in block {loop_data['blockname'].iloc[0]}")
 
             if fit_model.lower() == 'huber':
-                X_poly = PolynomialFeatures(degree=4, include_bias=True).fit_transform(control.values.reshape(-1, 1))
+                X_poly = PolynomialFeatures(degree=4, include_bias=True).fit_transform(
+                    control.values.reshape(-1, 1))
                 # Fit robust regression
                 model = HuberRegressor().fit(X_poly, signal.values)
                 # Predict fitted baseline from control
                 control_fitted = model.predict(X_poly)
             else:
                 # Generate fitted 405 signal
-                fit_signal_control = np.polyfit(control, signal, poly_degree_fitted_control)
+                fit_signal_control = np.polyfit(
+                    control, signal, poly_degree_fitted_control)
                 control_fitted = np.polyval(fit_signal_control, control)
 
             # Generate polynomial fit for signal
@@ -221,7 +241,7 @@ def fp_streams_fitted(streams_data: pd.DataFrame, streams_info: pd.DataFrame, si
             poly_control = np.polyval(fit_poly_control, time)
 
             tmp_fiber_data = pd.DataFrame({'time': time})
-            
+
             # Combine generated data with loop
             tmp_fiber_data['control'] = control
             tmp_fiber_data['signal'] = signal
@@ -229,40 +249,54 @@ def fp_streams_fitted(streams_data: pd.DataFrame, streams_info: pd.DataFrame, si
             tmp_fiber_data['control_fitted'] = pd.Series(control_fitted)
             tmp_fiber_data['poly_signal'] = pd.Series(poly_signal)
             tmp_fiber_data['poly_control'] = pd.Series(poly_control)
-            tmp_fiber_data['delta_signal_fitted_control'] = pd.Series(signal - control_fitted)
-            tmp_fiber_data['delta_signal_poly'] = pd.Series(signal - poly_signal)
-            tmp_fiber_data['delta_control_poly'] = pd.Series(control - poly_control)
+            tmp_fiber_data['delta_signal_fitted_control'] = pd.Series(
+                signal - control_fitted)
+            tmp_fiber_data['delta_signal_poly'] = pd.Series(
+                signal - poly_signal)
+            tmp_fiber_data['delta_control_poly'] = pd.Series(
+                control - poly_control)
 
             # Generate z-scores
-            tmp_fiber_data['delta_signal_fitted_control_zscore'] = (tmp_fiber_data['delta_signal_fitted_control'] - tmp_fiber_data['delta_signal_fitted_control'].mean()) / tmp_fiber_data['delta_signal_fitted_control'].std()
-            tmp_fiber_data['delta_signal_poly_zscore'] = (tmp_fiber_data['delta_signal_poly'] - tmp_fiber_data['delta_signal_poly'].mean()) / tmp_fiber_data['delta_signal_poly'].std()
-            tmp_fiber_data['delta_control_poly_zscore'] = (tmp_fiber_data['delta_control_poly'] - tmp_fiber_data['delta_control_poly'].mean()) / tmp_fiber_data['delta_control_poly'].std()
+            tmp_fiber_data['delta_signal_fitted_control_zscore'] = (
+                tmp_fiber_data['delta_signal_fitted_control'] - tmp_fiber_data['delta_signal_fitted_control'].mean()) / tmp_fiber_data['delta_signal_fitted_control'].std()
+            tmp_fiber_data['delta_signal_poly_zscore'] = (
+                tmp_fiber_data['delta_signal_poly'] - tmp_fiber_data['delta_signal_poly'].mean()) / tmp_fiber_data['delta_signal_poly'].std()
+            tmp_fiber_data['delta_control_poly_zscore'] = (
+                tmp_fiber_data['delta_control_poly'] - tmp_fiber_data['delta_control_poly'].mean()) / tmp_fiber_data['delta_control_poly'].std()
 
             # DFF calculations
-            mean_100_plus_delta_signal_fitted_control = tmp_fiber_data['delta_signal_fitted_control'].mean() + 100
-            tmp_fiber_data['delta_signal_fitted_control_dff'] = (100 + tmp_fiber_data['delta_signal_fitted_control'] - mean_100_plus_delta_signal_fitted_control) / mean_100_plus_delta_signal_fitted_control
+            mean_100_plus_delta_signal_fitted_control = tmp_fiber_data['delta_signal_fitted_control'].mean(
+            ) + 100
+            tmp_fiber_data['delta_signal_fitted_control_dff'] = (
+                100 + tmp_fiber_data['delta_signal_fitted_control'] - mean_100_plus_delta_signal_fitted_control) / mean_100_plus_delta_signal_fitted_control
 
-            mean_100_plus_delta_signal_poly = tmp_fiber_data['delta_signal_poly'].mean() + 100
-            tmp_fiber_data['delta_signal_poly_dff'] = (100 + tmp_fiber_data['delta_signal_poly'] - mean_100_plus_delta_signal_poly) / mean_100_plus_delta_signal_poly
+            mean_100_plus_delta_signal_poly = tmp_fiber_data['delta_signal_poly'].mean(
+            ) + 100
+            tmp_fiber_data['delta_signal_poly_dff'] = (
+                100 + tmp_fiber_data['delta_signal_poly'] - mean_100_plus_delta_signal_poly) / mean_100_plus_delta_signal_poly
 
-            mean_100_plus_delta_control_poly = tmp_fiber_data['delta_control_poly'].mean() + 100
-            tmp_fiber_data['delta_control_poly_dff'] = (100 + tmp_fiber_data['delta_control_poly'] - mean_100_plus_delta_control_poly) / mean_100_plus_delta_control_poly
+            mean_100_plus_delta_control_poly = tmp_fiber_data['delta_control_poly'].mean(
+            ) + 100
+            tmp_fiber_data['delta_control_poly_dff'] = (
+                100 + tmp_fiber_data['delta_control_poly'] - mean_100_plus_delta_control_poly) / mean_100_plus_delta_control_poly
 
-            tmp_fiber_data['blockname'] = loop_data['blockname'][0] # note this only works if block name is homogenous in loop_data
+            # note this only works if block name is homogenous in loop_data
+            tmp_fiber_data['blockname'] = loop_data['blockname'][0]
 
             if streams_data_processed is None:
                 streams_data_processed = tmp_fiber_data
             else:
-                streams_data_processed = pd.concat([streams_data_processed, tmp_fiber_data])
-
+                streams_data_processed = pd.concat(
+                    [streams_data_processed, tmp_fiber_data])
 
     if streams_data_processed is None:
-        print("[-] extracted_to_processed: No data to process in fp_streams_fitted function.")
+        print(
+            "[-] extracted_to_processed: No data to process in fp_streams_fitted function.")
         return pd.DataFrame()
 
     # return streams_data_processed.reset_index()
     return streams_data_processed
-    
+
 
 def fp_identify_fibers(df: pd.DataFrame, id_name: str) -> pd.DataFrame:
     """
@@ -275,7 +309,8 @@ def fp_identify_fibers(df: pd.DataFrame, id_name: str) -> pd.DataFrame:
     :param id_name: Name of the column containing photodetector IDs.
     :return: DataFrame with an additional 'fiber_id' column.
     """
-    df['fiber_id'] = df[id_name].apply(lambda x: '1' if any(char in x for char in ['A', 'B']) else '2')
+    df['fiber_id'] = df[id_name].apply(lambda x: '1' if any(
+        char in x for char in ['A', 'B']) else '2')
     df['fiber_id'] = df['fiber_id'].astype(str)
     return df
 
@@ -299,12 +334,14 @@ def fp_downsample(streams_data_smoothed_fitted: pd.DataFrame, fs: float, down_sa
 
     streams_data_smoothed_fitted_downsampled = (
         streams_data_smoothed_fitted.assign(
-            time=pd.cut(streams_data_smoothed_fitted['time'], bins=tm_bins, labels=tm_bins[1:])
+            time=pd.cut(
+                streams_data_smoothed_fitted['time'], bins=tm_bins, labels=tm_bins[1:])
         )
         .groupby(['blockname', 'fiber_id', 'signal_wavelength', 'control_wavelength', 'time'])
         .mean(numeric_only=True)
         .reset_index()
-        .assign(time=lambda x: x['time'].astype(float))  # Convert time to numeric
+        # Convert time to numeric
+        .assign(time=lambda x: x['time'].astype(float))
         .groupby(['blockname', 'fiber_id'])
         .filter(lambda x: x['time'].notna().all())
         .query('time < time.max()')  # Remove final bin
@@ -313,36 +350,42 @@ def fp_downsample(streams_data_smoothed_fitted: pd.DataFrame, fs: float, down_sa
 
     return streams_data_smoothed_fitted_downsampled
 
+
 def fp_epocs_to_events(epocs_data: pd.DataFrame, key_file) -> pd.DataFrame:
     # Convert the key_file series into a dataframe with a bunch of columns and 1 row
     key_file = key_file.to_frame().T
 
     # Labels epochs based on epoch id in log_fp and filters tone
-    join_ptc_info = key_file.melt(id_vars=['blockname'], 
+    join_ptc_info = key_file.melt(id_vars=['blockname'],
                                   value_vars=key_file.filter(like='PtC').columns.to_list() +
-                                              key_file.filter(like='PC').columns.to_list(),
+                                  key_file.filter(like='PC').columns.to_list(),
                                   var_name='name',
                                   value_name='event_id_char')
-    
-    join_ptc_info['name'] = join_ptc_info['name'].str.replace('/', '', regex=True).str.replace('Pt', 'P', regex=True)
+
+    join_ptc_info['name'] = join_ptc_info['name'].str.replace(
+        '/', '', regex=True).str.replace('Pt', 'P', regex=True)
     join_ptc_info = join_ptc_info.dropna(subset=['event_id_char'])
 
     epocs_data = to_frame(epocs_data[~epocs_data['name'].str.contains('Cam')])
     epocs_data = to_frame(epocs_data[~epocs_data['name'].str.contains('Tick')])
 
-    epocs_data['name'] = epocs_data['name'].str.replace('/', '', regex=True).str.replace('Pt', 'P', regex=True)
-    
-    epocs_data = epocs_data.merge(join_ptc_info, on=['blockname', 'name'], how='left')
+    epocs_data['name'] = epocs_data['name'].str.replace(
+        '/', '', regex=True).str.replace('Pt', 'P', regex=True)
+
+    epocs_data = epocs_data.merge(
+        join_ptc_info, on=['blockname', 'name'], how='left')
     epocs_data = epocs_data.rename(columns={'onset': 'event_ts',
                                             'offset': 'event_ts_offset',
                                             'name': 'event_id_ttl'})
-    
-    epocs_data = to_frame(epocs_data[['blockname', 'event_id_ttl', 'event_id_char', 'event_ts', 'event_ts_offset']])
-    
+
+    epocs_data = to_frame(epocs_data[[
+                          'blockname', 'event_id_ttl', 'event_id_char', 'event_ts', 'event_ts_offset']])
+
     # Filter out starting impulse across digital inputs upon Arduino start
     epocs_data = filter_first_event(epocs_data)
-    
+
     return epocs_data
+
 
 def filter_first_event(df: pd.DataFrame) -> pd.DataFrame:
     # Filter out first events that are measured with tdt if there are multiple events detected at arduino startup
@@ -356,14 +399,17 @@ def filter_first_event(df: pd.DataFrame) -> pd.DataFrame:
     events_to_filter = df[['blockname', 'event_id_char', 'event_ts']].copy()
     events_to_filter.drop_duplicates(inplace=True)
     events_to_filter['event_ts_round'] = events_to_filter['event_ts'].round(5)
-    
-    events_to_filter = events_to_filter.groupby('blockname').filter(lambda x: (x['event_ts_round'] == x['event_ts_round'].min()).sum() > 1)
-    
+
+    events_to_filter = events_to_filter.groupby('blockname').filter(
+        lambda x: (x['event_ts_round'] == x['event_ts_round'].min()).sum() > 1)
+
     if len(events_to_filter) > 1:
-        df = df.merge(events_to_filter.to_frame(), on=['blockname', 'event_id_char', 'event_ts'], how='left', indicator=True)
+        df = df.merge(events_to_filter.to_frame(), on=[
+                      'blockname', 'event_id_char', 'event_ts'], how='left', indicator=True)
         df = to_frame(df[df['_merge'] == 'left_only'].drop(columns=['_merge']))
-    
+
     return df
+
 
 def fp_npm_inputs_to_events(npm_input_data: pd.DataFrame, log_npm: pd.DataFrame) -> pd.DataFrame:
 
@@ -371,32 +417,33 @@ def fp_npm_inputs_to_events(npm_input_data: pd.DataFrame, log_npm: pd.DataFrame)
         blockname_process = npm_input_data['blockname_temp'].unique()
 
         # Labels epochs based on epoch id in log_fp and filters tone
-        join_npm_inputs = log_npm.loc[log_npm['blockname'].isin(blockname_process.tolist())]\
-            [['input0', 'input1']]\
+        join_npm_inputs = log_npm.loc[log_npm['blockname'].isin(blockname_process.tolist())][['input0', 'input1']]\
             .melt(var_name='input_id', value_name='event_id_char', value_vars=['input0', 'input1'])\
             .dropna(subset=['event_id_char'])
 
         if join_npm_inputs.shape[0] == 0:
-            print(f"[-] extracted_to_processed: warning: no npm_inputs defined in log_npm for blockname = {blockname_process[0]}")
+            print(
+                f"[-] extracted_to_processed: warning: no npm_inputs defined in log_npm for blockname = {blockname_process[0]}")
 
         npm_input_data = npm_input_data\
-            .merge(join_npm_inputs, left_on='input_id', right_index=True, how='left')\
-            [['input_id', 'event_id_char', 'event_ts', 'event_ts_offset']]\
+            .merge(join_npm_inputs, left_on='input_id', right_index=True, how='left')[['input_id', 'event_id_char', 'event_ts', 'event_ts_offset']]\
             .assign(event_ts=lambda x: x['event_ts'] / 1000)
 
         return npm_input_data
 
     npm_input_data['blockname_temp'] = npm_input_data['blockname']
     grouped = npm_input_data.groupby(['session_name', 'blockname'])
-    npm_input_data = grouped.apply(lambda x: f_fp_npm_inputs_to_events(x, log_npm)).reset_index(drop=True).drop_duplicates()
+    npm_input_data = grouped.apply(lambda x: f_fp_npm_inputs_to_events(
+        x, log_npm)).reset_index(drop=True).drop_duplicates()
 
     return npm_input_data
 
-def fp_peri_event_time_histogram(streams_data_smoothed_fitted: pd.DataFrame, 
-                                 events_filtered: pd.DataFrame, 
-                                 peth_pre: float, 
-                                 peth_post: float, 
-                                 fs: float, 
+
+def fp_peri_event_time_histogram(streams_data_smoothed_fitted: pd.DataFrame,
+                                 events_filtered: pd.DataFrame,
+                                 peth_pre: float,
+                                 peth_post: float,
+                                 fs: float,
                                  down_sampled_freq: float) -> pd.DataFrame:
 
     streams_data_smoothed_fitted_peth = pd.DataFrame()
@@ -406,32 +453,42 @@ def fp_peri_event_time_histogram(streams_data_smoothed_fitted: pd.DataFrame,
 
         loop_streams = streams_data_smoothed_fitted.loc[
             (streams_data_smoothed_fitted['time'] > loop_event['event_ts'] - peth_pre) &
-            (streams_data_smoothed_fitted['time'] < loop_event['event_ts'] + peth_post)
+            (streams_data_smoothed_fitted['time']
+             < loop_event['event_ts'] + peth_post)
         ]
 
-        loop_streams = loop_streams.merge(loop_event.to_frame().T, on='blockname')
-        loop_streams['time_rel'] = loop_streams['time'] - loop_streams['event_ts']
+        loop_streams = loop_streams.merge(
+            loop_event.to_frame().T, on='blockname')
+        loop_streams['time_rel'] = loop_streams['time'] - \
+            loop_streams['event_ts']
 
         tm_bins = np.arange(-peth_pre, peth_post, 1 / down_sampled_freq)
 
         # Resample data
-        loop_streams['time_rel'] = pd.cut(loop_streams['time_rel'], tm_bins, labels=tm_bins[1:])
+        loop_streams['time_rel'] = pd.cut(
+            loop_streams['time_rel'], tm_bins, labels=tm_bins[1:])
 
-        columns_of_interest = ['session_name', 'blockname', 'fiber_id', 'branch_id', 'signal_wavelength', 'control_wavelength', 'event_id_ttl', 'event_id_char', 'event_ts', 'event_number', 'time_rel']
-        existing_columns = [col for col in loop_streams.columns if col in columns_of_interest]
-        loop_streams = loop_streams.groupby(existing_columns, as_index=False).mean(numeric_only=True)
+        columns_of_interest = ['session_name', 'blockname', 'fiber_id', 'branch_id', 'signal_wavelength',
+                               'control_wavelength', 'event_id_ttl', 'event_id_char', 'event_ts', 'event_number', 'time_rel']
+        existing_columns = [
+            col for col in loop_streams.columns if col in columns_of_interest]
+        loop_streams = loop_streams.groupby(
+            existing_columns, as_index=False).mean(numeric_only=True)
 
         loop_streams['time_rel'] = loop_streams['time_rel'].astype(float)
-        loop_streams = loop_streams[loop_streams['time_rel'] < loop_streams['time_rel'].max()]
+        loop_streams = loop_streams[loop_streams['time_rel']
+                                    < loop_streams['time_rel'].max()]
 
         if n_event == 0:
             streams_data_smoothed_fitted_peth = loop_streams
         else:
-            streams_data_smoothed_fitted_peth = pd.concat([streams_data_smoothed_fitted_peth, loop_streams])
+            streams_data_smoothed_fitted_peth = pd.concat(
+                [streams_data_smoothed_fitted_peth, loop_streams])
 
     return streams_data_smoothed_fitted_peth
 
-def resample_peri_event_series(df_series: pd.DataFrame, var_series_ts: str, 
+
+def resample_peri_event_series(df_series: pd.DataFrame, var_series_ts: str,
                                time_pre: float, time_post: float, down_sampled_freq: float,
                                vars_grouping: list, vars_to_summarise: list) -> pd.DataFrame:
     # resample data produced from fp_peri_event_time_histogram to set frequency by binning time and summarising
@@ -445,36 +502,49 @@ def resample_peri_event_series(df_series: pd.DataFrame, var_series_ts: str,
     # vars_to_summarise (list of str): variables you wish to compute the mean value of for each time bin
     #
     #  all variables not defined in var_series_ts, vars_grouping, or vars_to_summarise will be dropped.
-    
-    tm_bins = np.arange(-time_pre, time_post, 1 / down_sampled_freq)  # create time bins
 
-    df_series['rel_time_bin'] = pd.cut(df_series[var_series_ts], tm_bins, labels=False, right=False)  # bin var_series_ts using tm_bins
-    df_series['rel_time_bin'] = df_series['rel_time_bin'].apply(lambda x: round(x, 3))  # convert time to numeric
-    df_series = to_frame(df_series[df_series['rel_time_bin'] < df_series['rel_time_bin'].max()])  # remove final time bin (often contained in only a subset)
+    tm_bins = np.arange(-time_pre, time_post, 1 /
+                        down_sampled_freq)  # create time bins
+
+    # bin var_series_ts using tm_bins
+    df_series['rel_time_bin'] = pd.cut(
+        df_series[var_series_ts], tm_bins, labels=False, right=False)
+    df_series['rel_time_bin'] = df_series['rel_time_bin'].apply(
+        lambda x: round(x, 3))  # convert time to numeric
+    # remove final time bin (often contained in only a subset)
+    df_series = to_frame(
+        df_series[df_series['rel_time_bin'] < df_series['rel_time_bin'].max()])
 
     selected_columns = vars_grouping + ['rel_time_bin'] + vars_to_summarise
-    df_series = to_frame(df_series[selected_columns])  # select defined variables
+    # select defined variables
+    df_series = to_frame(df_series[selected_columns])
 
-    grouped = df_series.groupby(vars_grouping + ['rel_time_bin'])  # group at all variables except vars_to_summarise
-    result = grouped[vars_to_summarise].mean().reset_index()  # summarise to mean of vars_to_summarise within time bins
+    # group at all variables except vars_to_summarise
+    grouped = df_series.groupby(vars_grouping + ['rel_time_bin'])
+    # summarise to mean of vars_to_summarise within time bins
+    result = grouped[vars_to_summarise].mean().reset_index()
     return result
+
 
 def identify_fibers(df: pd.DataFrame, id_name: str) -> pd.DataFrame:
     """
     Return fiber_id for each photodetector present in the dataframe.
-    
+
     Assumes that photosensor A and photosensor B belong to tdt bank 1 and correspond to fiber 1.
     Assumes that photosensor C and photosensor D belong to tdt bank 1 and correspond to fiber 2.
-    
+
     :param df: DataFrame containing the data.
     :param id_name: Name of the column to identify fibers.
     :return: DataFrame with an added 'fiber_id' column.
     """
-    df['fiber_id'] = np.where(df[id_name].str.contains('A|B', regex=True), '1', np.nan)
-    df['fiber_id'] = np.where(df[id_name].str.contains('C|D', regex=True), '2', df['fiber_id'])
+    df['fiber_id'] = np.where(
+        df[id_name].str.contains('A|B', regex=True), '1', np.nan)
+    df['fiber_id'] = np.where(df[id_name].str.contains(
+        'C|D', regex=True), '2', df['fiber_id'])
     df['fiber_id'] = df['fiber_id'].astype(str)
-    
+
     return df
+
 
 def timeseries_resample(df: pd.DataFrame, var_time: str, var_signal: str) -> pd.DataFrame:
     down_sampled_freq = df['down_sampled_freq'].unique().astype(float)
@@ -482,11 +552,14 @@ def timeseries_resample(df: pd.DataFrame, var_time: str, var_signal: str) -> pd.
     tm_bins = np.arange(0, df[var_time].max() + bin_width, bin_width)
 
     df_resampled = df.copy()
-    df_resampled[var_time] = pd.cut(df_resampled[var_time], list(tm_bins), right=False)
+    df_resampled[var_time] = pd.cut(
+        df_resampled[var_time], list(tm_bins), right=False)
     df_resampled[var_time] = df_resampled[var_time].astype(str).astype(float)
-    df_resampled = df_resampled.groupby(df_resampled.columns.difference([var_signal])).agg({var_signal: 'mean'}).reset_index()
+    df_resampled = df_resampled.groupby(df_resampled.columns.difference(
+        [var_signal])).agg({var_signal: 'mean'}).reset_index()
 
     return df_resampled
+
 
 def timeseries_interpolate_rows(df: pd.DataFrame, var_time: str, var_signal: str) -> pd.DataFrame:
     down_sampled_freq = df['down_sampled_freq'].unique().astype(float)
@@ -499,7 +572,8 @@ def timeseries_interpolate_rows(df: pd.DataFrame, var_time: str, var_signal: str
         step=bin_width
     ).round(bin_width_digits)
 
-    interpolated_signal = np.interp(timestamp_seq, df[var_time], df[var_signal])
+    interpolated_signal = np.interp(
+        timestamp_seq, df[var_time], df[var_signal])
 
     filled_data = pd.DataFrame({
         var_time: timestamp_seq,
@@ -508,6 +582,7 @@ def timeseries_interpolate_rows(df: pd.DataFrame, var_time: str, var_signal: str
     filled_data[var_time] = filled_data[var_time].round(bin_width_digits)
 
     return filled_data
+
 
 def convert_beh_arduino_to_fp_time(df_rec_system_tick: pd.DataFrame, df_beh_events_and_tick: pd.DataFrame) -> pd.DataFrame:
     """
@@ -543,10 +618,10 @@ def convert_beh_arduino_to_fp_time(df_rec_system_tick: pd.DataFrame, df_beh_even
     )
 
     # Replace clock tick ts with FP ts and interpolate beh tick
-    ticks = (df_beh_events_and_tick.sort_values('ts') \
-                                  .query("event_id_char == 'tick_clock_out'") \
-                                  .loc[:, ['ts', 'event_id_char']] \
-                                  .rename(columns={'ts': 'ts_tick_previous_beh'}))
+    ticks = (df_beh_events_and_tick.sort_values('ts')
+             .query("event_id_char == 'tick_clock_out'")
+             .loc[:, ['ts', 'event_id_char']]
+             .rename(columns={'ts': 'ts_tick_previous_beh'}))
 
     df_beh_transform = (
         df_beh_events_and_tick
@@ -562,6 +637,7 @@ def convert_beh_arduino_to_fp_time(df_rec_system_tick: pd.DataFrame, df_beh_even
     )
 
     return df_beh_transform
+
 
 def fp_filter_events(events: pd.DataFrame, fp_events_of_interest: list) -> pd.DataFrame:
     """
@@ -600,11 +676,13 @@ def fp_filter_events(events: pd.DataFrame, fp_events_of_interest: list) -> pd.Da
         events_filtered.extend(bout_onset)
 
     if in_list(fp_events_of_interest, 'active_rotation_onset'):
-        bout_onset = get_event_bouts(events, ['active_rotation'], [3, 3], [0, 8], ['==', '>'], 'active_rotation_onset')
+        bout_onset = get_event_bouts(events, ['active_rotation'], [3, 3], [
+                                     0, 8], ['==', '>'], 'active_rotation_onset')
         events_filtered.extend(bout_onset)
 
     if in_list(fp_events_of_interest, 'inactive_rotation_onset'):
-        bout_onset = get_event_bouts(events, ['inactive_rotation'], [3, 3], [0, 8], ['==', '>'], 'inactive_rotation_onset')
+        bout_onset = get_event_bouts(events, ['inactive_rotation'], [3, 3], [
+                                     0, 8], ['==', '>'], 'inactive_rotation_onset')
         events_filtered.extend(bout_onset)
 
     if in_list(fp_events_of_interest, 'active_criteria'):
@@ -616,27 +694,33 @@ def fp_filter_events(events: pd.DataFrame, fp_events_of_interest: list) -> pd.Da
         events_filtered.extend([to_frame(bout_onset)])
 
     if in_list(fp_events_of_interest, 'active_rotation_criteria'):
-        bout_onset = events[events['event_id_char'] == 'active_rotation_criteria']
+        bout_onset = events[events['event_id_char']
+                            == 'active_rotation_criteria']
         events_filtered.extend([to_frame(bout_onset)])
 
     if in_list(fp_events_of_interest, 'inactive_rotation_criteria'):
-        bout_onset = events[events['event_id_char'] == 'inactive_rotation_criteria']
+        bout_onset = events[events['event_id_char']
+                            == 'inactive_rotation_criteria']
         events_filtered.extend([to_frame(bout_onset)])
 
     if in_list(fp_events_of_interest, 'active_rotation_criteria_increment'):
-        bout_onset = events[events['event_id_char'] == 'active_rotation_criteria_increment']
+        bout_onset = events[events['event_id_char']
+                            == 'active_rotation_criteria_increment']
         events_filtered.extend([to_frame(bout_onset)])
 
     if in_list(fp_events_of_interest, 'inactive_rotation_criteria_increment'):
-        bout_onset = events[events['event_id_char'] == 'inactive_rotation_criteria_increment']
+        bout_onset = events[events['event_id_char']
+                            == 'inactive_rotation_criteria_increment']
         events_filtered.extend([to_frame(bout_onset)])
 
     if in_list(fp_events_of_interest, 'sol_onset'):
-        bout_onset = get_event_bouts(events, ['sol'], [1, 1], [0, 0], ['==', '>'], 'sol_onset')
+        bout_onset = get_event_bouts(events, ['sol'], [1, 1], [
+                                     0, 0], ['==', '>'], 'sol_onset')
         events_filtered.extend(bout_onset)
 
     if in_list(fp_events_of_interest, 'pump_onset'):
-        bout_onset = events[events['event_id_char'] == 'sol_onset'].assign(event_id_char='pump_onset')
+        bout_onset = events[events['event_id_char'] ==
+                            'sol_onset'].assign(event_id_char='pump_onset')
         events_filtered.extend([bout_onset])
 
     if in_list(fp_events_of_interest, 'airpuff_onset'):
@@ -660,7 +744,8 @@ def fp_filter_events(events: pd.DataFrame, fp_events_of_interest: list) -> pd.Da
         events_filtered.extend([to_frame(bout_onset)])
 
     if in_list(fp_events_of_interest, 'tone_onset'):
-        bout_onset = events[events['event_id_char'].isin(['tone_onset', 'tone'])]
+        bout_onset = events[events['event_id_char'].isin(
+            ['tone_onset', 'tone'])]
         events_filtered.extend([to_frame(bout_onset)])
 
     if in_list(fp_events_of_interest, 'shock_onset'):
@@ -691,6 +776,7 @@ def fp_filter_events(events: pd.DataFrame, fp_events_of_interest: list) -> pd.Da
     events_filtered_frame = to_frame(events_filtered)
     return events_filtered_frame
 
+
 def save_graph(df, dir: str, title=None):
     """
     Saves a DataFrame over time.
@@ -711,7 +797,10 @@ def save_graph(df, dir: str, title=None):
 
     plt.tight_layout()
     plt.savefig(f'{dir}/{title}.png')
+    plt.cla()
     plt.clf()
+    plt.close("all")
+
 
 def save_graphs(df: list, dir: str, title: str, titles: list):
     """
@@ -731,16 +820,22 @@ def save_graphs(df: list, dir: str, title: str, titles: list):
 
     plt.tight_layout()
     plt.savefig(f'{dir}/{title}.png')
+    plt.cla()
     plt.clf()
+    plt.close("all")
+
 
 def save_streams_data_smoothed_graphs(streams_data_smoothed_fitted_downsampled, output_dir, model_name):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    streams_data_smoothed_fitted_downsampled = streams_data_smoothed_fitted_downsampled.drop(['signal_wavelength', 'control_wavelength', 'blockname'], axis=1)
+    streams_data_smoothed_fitted_downsampled = streams_data_smoothed_fitted_downsampled.drop(
+        ['signal_wavelength', 'control_wavelength', 'blockname'], axis=1)
 
-    fiber_id1 = streams_data_smoothed_fitted_downsampled[streams_data_smoothed_fitted_downsampled['fiber_id'] == '1']
-    fiber_id2 = streams_data_smoothed_fitted_downsampled[streams_data_smoothed_fitted_downsampled['fiber_id'] == '2']
+    fiber_id1 = streams_data_smoothed_fitted_downsampled[
+        streams_data_smoothed_fitted_downsampled['fiber_id'] == '1']
+    fiber_id2 = streams_data_smoothed_fitted_downsampled[
+        streams_data_smoothed_fitted_downsampled['fiber_id'] == '2']
     fiber_id1 = fiber_id1.drop(['fiber_id'], axis=1)
     fiber_id2 = fiber_id2.drop(['fiber_id'], axis=1)
 
@@ -749,31 +844,41 @@ def save_streams_data_smoothed_graphs(streams_data_smoothed_fitted_downsampled, 
     # save_graph(fiber_id2, output_dir, "Fiber 2 All Traces")
 
     # Poly control and signal
-    selected_traces_id1 = fiber_id1[['time', 'signal', 'poly_signal', 'control', 'poly_control']]
-    selected_traces_id2 = fiber_id2[['time', 'signal', 'poly_signal', 'control', 'poly_control']]
+    selected_traces_id1 = fiber_id1[[
+        'time', 'signal', 'poly_signal', 'control', 'poly_control']]
+    selected_traces_id2 = fiber_id2[[
+        'time', 'signal', 'poly_signal', 'control', 'poly_control']]
     # save_graph(selected_traces_id1, output_dir, "Fiber 1 Poly Control and Signal")
     # save_graph(selected_traces_id2, output_dir, "Fiber 2 Poly Control and Signal")
 
     # Raw signal minus polynomial fit z score
-    delta_signal_poly_zscore_id1 = fiber_id1[['time', 'delta_signal_poly_zscore']]
-    delta_signal_poly_zscore_id2 = fiber_id2[['time', 'delta_signal_poly_zscore']]
+    delta_signal_poly_zscore_id1 = fiber_id1[[
+        'time', 'delta_signal_poly_zscore']]
+    delta_signal_poly_zscore_id2 = fiber_id2[[
+        'time', 'delta_signal_poly_zscore']]
     # save_graph(delta_signal_poly_zscore_id1, output_dir, "Fiber 1 Raw Signal Minus Polynomial Fit Z Score")
     # save_graph(delta_signal_poly_zscore_id2, output_dir, "Fiber 2 Raw Signal Minus Polynomial Fit Z Score")
 
     # Raw signal and 405 LS fit
-    control_fitted_id1 = fiber_id1[['time', 'control', 'signal', 'control_fitted', 'delta_signal_fitted_control']]
-    control_fitted_id2 = fiber_id2[['time', 'control', 'signal', 'control_fitted', 'delta_signal_fitted_control']]
+    control_fitted_id1 = fiber_id1[[
+        'time', 'control', 'signal', 'control_fitted', 'delta_signal_fitted_control']]
+    control_fitted_id2 = fiber_id2[[
+        'time', 'control', 'signal', 'control_fitted', 'delta_signal_fitted_control']]
     # save_graph(control_fitted_id1, output_dir, "Fiber 1 Raw Signal and 405 LS Fit")
     # save_graph(control_fitted_id2, output_dir, "Fiber 2 Raw Signal and 405 LS Fit")
 
     # Raw signal minus 405 LA fit z score
-    delta_signal_fitted_control_zscore_id1 = fiber_id1[['time', 'delta_signal_fitted_control_zscore']]
-    delta_signal_fitted_control_zscore_id2 = fiber_id2[['time', 'delta_signal_fitted_control_zscore']]
+    delta_signal_fitted_control_zscore_id1 = fiber_id1[[
+        'time', 'delta_signal_fitted_control_zscore']]
+    delta_signal_fitted_control_zscore_id2 = fiber_id2[[
+        'time', 'delta_signal_fitted_control_zscore']]
     # save_graph(delta_signal_fitted_control_zscore_id1, output_dir, "Fiber 1 Raw Signal Minus 405 LS Fit Z Score")
     # save_graph(delta_signal_fitted_control_zscore_id2, output_dir, "Fiber 2 Raw Signal Minus 405 LS Fit Z Score")
 
-    save_graphs([selected_traces_id1, delta_signal_poly_zscore_id1, control_fitted_id1, delta_signal_fitted_control_zscore_id1], output_dir, "Fiber 1", ["Poly Control and Signal", "Raw Signal Minus Signal Self Poly Z Score", "Raw Signal and 405 LS Fit", f"Raw Signal Minus {model_name} Model LS Fit Z Score"])
-    save_graphs([selected_traces_id2, delta_signal_poly_zscore_id2, control_fitted_id2, delta_signal_fitted_control_zscore_id2], output_dir, "Fiber 2", ["Poly Control and Signal", "Raw Signal Minus Signal Self Poly Z Score", "Raw Signal and 405 LS Fit", f"Raw Signal Minus {model_name} Model LS Fit Z Score"])
+    save_graphs([selected_traces_id1, delta_signal_poly_zscore_id1, control_fitted_id1, delta_signal_fitted_control_zscore_id1], output_dir, "Fiber 1", [
+                "Poly Control and Signal", "Raw Signal Minus Signal Self Poly Z Score", "Raw Signal and 405 LS Fit", f"Raw Signal Minus {model_name} Model LS Fit Z Score"])
+    save_graphs([selected_traces_id2, delta_signal_poly_zscore_id2, control_fitted_id2, delta_signal_fitted_control_zscore_id2], output_dir, "Fiber 2", [
+                "Poly Control and Signal", "Raw Signal Minus Signal Self Poly Z Score", "Raw Signal and 405 LS Fit", f"Raw Signal Minus {model_name} Model LS Fit Z Score"])
 
 
 def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
@@ -783,7 +888,7 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
     # Create dir_processed folder if it doesn't exist
     if not os.path.exists(dir_processed):
         os.makedirs(dir_processed)
-    
+
     if dir_extracted_arduino is None:
         dir_extracted_arduino = None
 
@@ -803,7 +908,8 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
 
     # Remove suffixes
     for suffix in suffixes:
-        key_files['blockname'] = key_files['blockname'].str.replace(suffix, '', regex=True)
+        key_files['blockname'] = key_files['blockname'].str.replace(
+            suffix, '', regex=True)
 
     key_files: pd.DataFrame = key_files.drop_duplicates()
 
@@ -813,8 +919,8 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
     key_files = to_frame(
         key_files[
             key_files['blockname'].str.contains(
-                subjects_string, 
-                case=False, 
+                subjects_string,
+                case=False,
                 regex=True
             )
         ]
@@ -833,7 +939,8 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
         key_files = to_frame(temp)
 
         if key_files.empty:
-            print("[-] extracted_to_processed: No data in dir_extracted matching manual_blocknames")
+            print(
+                "[-] extracted_to_processed: No data in dir_extracted matching manual_blocknames")
             # print("")
             return
 
@@ -842,7 +949,8 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
         key_files = to_frame(temp)
 
         if key_files.empty:
-            print("[-] extracted_to_processed: No data in dir_extracted matching manual_experiments")
+            print(
+                "[-] extracted_to_processed: No data in dir_extracted matching manual_experiments")
             # print("")
             return
 
@@ -856,10 +964,12 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
 
         # Filter if multi_subject processed
         list_dir_output = os.listdir(dir_processed)
-        list_dir_output = [filename.replace(suffix, '') for filename in list_dir_output for suffix in suffixes]
+        list_dir_output = [filename.replace(
+            suffix, '') for filename in list_dir_output for suffix in suffixes]
         list_dir_output = list(set(list_dir_output))
 
-        temp = key_files[~key_files['blockname_multi_subject'].isin(list_dir_output)]
+        temp = key_files[~key_files['blockname_multi_subject'].isin(
+            list_dir_output)]
         key_files = to_frame(temp)
 
         # Filter block names produced by multi_subject
@@ -902,26 +1012,32 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
                     bank_id = key_file['fiber_id02']
 
                 if not pd.isna(key_file['fiber_id01']) and not pd.isna(key_file['fiber_id02']):
-                    print('[-] extracted_to_processed: WARNING MULTI SUBJECT DEFINED IN BOTH fiber_id01 and fiber_id02')
+                    print(
+                        '[-] extracted_to_processed: WARNING MULTI SUBJECT DEFINED IN BOTH fiber_id01 and fiber_id02')
                     break
 
                 if pd.isna(key_file['fiber_id01']) and pd.isna(key_file['fiber_id02']):
-                    print('[-] extracted_to_processed: WARNING MULTI SUBJECT NOT DEFINED IN fiber_id01 and fiber_id02')
+                    print(
+                        '[-] extracted_to_processed: WARNING MULTI SUBJECT NOT DEFINED IN fiber_id01 and fiber_id02')
                     break
 
                 # print(f'processing bank number {bank_process} corresponding to {bank_id}')
 
-        signal_ids = to_frame(key_file.filter(like='signal_id')).melt(var_name='signal_id', value_name='channel_wavelength')
-        signal_ids = signal_ids.dropna(subset=['channel_wavelength']).sort_values(by='signal_id')
+        signal_ids = to_frame(key_file.filter(like='signal_id')).melt(
+            var_name='signal_id', value_name='channel_wavelength')
+        signal_ids = signal_ids.dropna(
+            subset=['channel_wavelength']).sort_values(by='signal_id')
         signal_ids['control_id'] = key_file['control_id']
 
         # Import extracted data
-        
-        streams_path = os.path.join(dir_extracted, f'{blockname_process}_streams_info')
-        data_path    = os.path.join(dir_extracted, f'{blockname_process}_streams_data')
+
+        streams_path = os.path.join(
+            dir_extracted, f'{blockname_process}_streams_info')
+        data_path = os.path.join(
+            dir_extracted, f'{blockname_process}_streams_data')
         streams_info = load_data(streams_path)
         streams_data = load_data(data_path)
-        
+
         # Check for 'blockname' column in both DataFrames
         missing_headers = []
         if 'blockname' not in streams_info.columns:
@@ -929,25 +1045,31 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
         if 'blockname' not in streams_data.columns:
             missing_headers.append(f"{data_path} (streams_data)")
         if missing_headers:
-            print("[-] extracted_to_processed: Missing 'blockname' column in the following file(s):")
+            print(
+                "[-] extracted_to_processed: Missing 'blockname' column in the following file(s):")
             for file in missing_headers:
                 print(f" - {file}")
 
         # Filter stream data and info to bank 1 or 2 if recording multi subject
         if flag_multi_subject:
             if bank_process == 1:
-                streams_data = to_frame(streams_data[streams_data['channel'].str.contains('[A-B]')])
-                streams_info = to_frame(streams_info[streams_info['name'].str.contains('[A-B]')])
+                streams_data = to_frame(
+                    streams_data[streams_data['channel'].str.contains('[A-B]')])
+                streams_info = to_frame(
+                    streams_info[streams_info['name'].str.contains('[A-B]')])
             elif bank_process == 2:
-                streams_data = to_frame(streams_data[streams_data['channel'].str.contains('[C-D]')])
-                streams_info = to_frame(streams_info[streams_info['name'].str.contains('[C-D]')])
+                streams_data = to_frame(
+                    streams_data[streams_data['channel'].str.contains('[C-D]')])
+                streams_info = to_frame(
+                    streams_info[streams_info['name'].str.contains('[C-D]')])
 
         fs = streams_info['fs'].unique()
 
         # Smooth data
         # print(f' - smoothing data using window width {key_file["smoothing_window"]}')
-        streams_data_smoothed: pd.DataFrame = fp_moving_average(streams_data, streams_info, key_file['smoothing_window'])
-        
+        streams_data_smoothed: pd.DataFrame = fp_moving_average(
+            streams_data, streams_info, key_file['smoothing_window'])
+
         # Polynomial fitting, least squares fitting, subtractions, zscores, and delta f/f
         # print(f' - processing {len(signal_ids)} signal found in session')
 
@@ -958,31 +1080,32 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
             # filter streams data to a single signal and control for the loop
             streams_data_loop = streams_data_smoothed[
                 (streams_data_smoothed['channel'].str.contains(str(loop_signal_id['channel_wavelength'])) |
-                streams_data_smoothed['channel'].str.contains(str(loop_signal_id['control_id'])))
+                 streams_data_smoothed['channel'].str.contains(str(loop_signal_id['control_id'])))
             ]
-            # fp_streams_fitted does the main heavy lifting to do isosbestic correction and normalize    
+            # fp_streams_fitted does the main heavy lifting to do isosbestic correction and normalize
             streams_data_smoothed_fitted_loop = fp_streams_fitted(streams_data_loop, streams_info,
-                            loop_signal_id['channel_wavelength'],
-                            key_file['control_id'], key_file['poly_degree_fitted_control'],
-                            key_file['poly_degree_polyfit'], key_file['trim_time_start'], 'poly')
+                                                                  loop_signal_id['channel_wavelength'],
+                                                                  key_file['control_id'], key_file['poly_degree_fitted_control'],
+                                                                  key_file['poly_degree_polyfit'], key_file['trim_time_start'], 'poly')
 
             streams_data_smoothed_fitted_loop['signal_wavelength'] = loop_signal_id['channel_wavelength']
             streams_data_smoothed_fitted_loop['control_wavelength'] = loop_signal_id['control_id']
 
-
             if 'streams_data_smoothed_fitted' not in locals():
                 streams_data_smoothed_fitted = streams_data_smoothed_fitted_loop
             else:
-                streams_data_smoothed_fitted = pd.concat([streams_data_smoothed_fitted, streams_data_smoothed_fitted_loop])
+                streams_data_smoothed_fitted = pd.concat(
+                    [streams_data_smoothed_fitted, streams_data_smoothed_fitted_loop])
         if not streams_data_smoothed_fitted.empty:
 
             # down sample stream data
             # print(f' - downsampling data to frequency {key_file["down_sampled_freq"]}')
             streams_data_smoothed_fitted_downsampled = fp_downsample(streams_data_smoothed_fitted, fs[0],
-                                                                    key_file['down_sampled_freq'])
+                                                                     key_file['down_sampled_freq'])
 
             # ------Graphing------
-            save_streams_data_smoothed_graphs(streams_data_smoothed_fitted_downsampled.copy(), dir_processed + '/' + 'streams_data_smoothed_graphs/' + blockname_process + '/', 'poly')
+            save_streams_data_smoothed_graphs(streams_data_smoothed_fitted_downsampled.copy(
+            ), dir_processed + '/' + 'streams_data_smoothed_graphs/' + blockname_process + '/', 'poly')
             # ------Graphing------
 
             flag_events_tdt_epocs = 0
@@ -990,11 +1113,13 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
 
             epocs_data = None
             epocs_info = None
-            epocs_data_file = os.path.join(dir_extracted, f"{blockname_process}_epocs_data.feather")
+            epocs_data_file = os.path.join(
+                dir_extracted, f"{blockname_process}_epocs_data.feather")
             if os.path.exists(epocs_data_file):
                 flag_events_tdt_epocs = 1
                 epocs_data = pd.read_feather(epocs_data_file)
-                epocs_info = pd.read_feather(os.path.join(dir_extracted, f"{blockname_process}_epocs_info.feather"))
+                epocs_info = pd.read_feather(os.path.join(
+                    dir_extracted, f"{blockname_process}_epocs_info.feather"))
 
             # print(" - extracting events and determining events of interest for peth")
 
@@ -1002,15 +1127,18 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
                 # print("   ~ sourcing events from TDT epocs")
 
                 # get events_of_interest
-                events_of_interest = key_file['events_of_interest'].split(";")[0].strip()
+                events_of_interest = key_file['events_of_interest'].split(";")[
+                    0].strip()
 
                 # print(f" - using events defined in log_fp: {events_of_interest}")
-            
+
                 events = fp_epocs_to_events(epocs_data, key_file)
-                events = events.groupby('event_id_char', group_keys=False).apply(lambda x: x.assign(event_number=np.arange(1, len(x) + 1))).reset_index(drop=True)
+                events = events.groupby('event_id_char', group_keys=False).apply(
+                    lambda x: x.assign(event_number=np.arange(1, len(x) + 1))).reset_index(drop=True)
 
                 if events.empty:
-                    print("[-] extracted_to_processed: * NO EVENTS DETECTED in tdt epoch data *")
+                    print(
+                        "[-] extracted_to_processed: * NO EVENTS DETECTED in tdt epoch data *")
                     flag_events_tdt_epocs = 0
                 else:
                     # return filtered events based on filters defined in fp_events_of_interest
@@ -1022,24 +1150,34 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
                             # print("    ~ sourcing events from arduino file synched to TDT clock")
 
                             blockname_alignment = blockname_process_multi_subject if flag_multi_subject else blockname_process
-                            fn_arduino_events = os.path.join(dir_extracted_arduino, f"{blockname_alignment}_event.csv")
+                            fn_arduino_events = os.path.join(
+                                dir_extracted_arduino, f"{blockname_alignment}_event.csv")
 
                             if not os.path.exists(fn_arduino_events):
-                                print("[-] extracted_to_processed: !error: no extracted arduino file exists")
-                                print("[-] extracted_to_processed:", fn_arduino_events)
+                                print(
+                                    "[-] extracted_to_processed: !error: no extracted arduino file exists")
+                                print("[-] extracted_to_processed:",
+                                      fn_arduino_events)
                                 return
 
-                            df_beh_events_and_tick = pd.read_csv(fn_arduino_events)
+                            df_beh_events_and_tick = pd.read_csv(
+                                fn_arduino_events)
                             df_beh_events_and_tick['event_ts'] = df_beh_events_and_tick['event_ts'] / 1000
-                            df_beh_events_and_tick = df_beh_events_and_tick.rename(columns={'event_ts': 'ts'})
+                            df_beh_events_and_tick = df_beh_events_and_tick.rename(
+                                columns={'event_ts': 'ts'})
 
-                            ticks = df_beh_events_and_tick[df_beh_events_and_tick['event_id_char'] == "tick_clock_out"].assign(tick_number=np.arange(1, len(ticks) + 1))
+                            ticks = df_beh_events_and_tick[df_beh_events_and_tick['event_id_char'] == "tick_clock_out"].assign(
+                                tick_number=np.arange(1, len(ticks) + 1))
 
-                            df_rec_system_tick = events[events['event_id_char'] == "clock"].tail(len(ticks)).loc[:, ['event_ts']].rename(columns={'event_ts': 'ts'}).assign(event_id_char="tick_clock_in")
+                            df_rec_system_tick = events[events['event_id_char'] == "clock"].tail(len(ticks)).loc[:, [
+                                'event_ts']].rename(columns={'event_ts': 'ts'}).assign(event_id_char="tick_clock_in")
 
-                            events = convert_beh_arduino_to_fp_time(df_rec_system_tick, df_beh_events_and_tick)
-                            events = events[~events['ts_rec_system'].isna()].assign(blockname=blockname_process).rename(columns={'ts_rec_system': 'event_ts', 'ts': 'event_ts_arduino'}).groupby('event_id_char').apply(lambda x: x.assign(event_number=np.arange(1, len(x) + 1))).reset_index(drop=True)
-                        events_filtered = fp_filter_events(events, events_of_interest)
+                            events = convert_beh_arduino_to_fp_time(
+                                df_rec_system_tick, df_beh_events_and_tick)
+                            events = events[~events['ts_rec_system'].isna()].assign(blockname=blockname_process).rename(columns={'ts_rec_system': 'event_ts', 'ts': 'event_ts_arduino'}).groupby(
+                                'event_id_char').apply(lambda x: x.assign(event_number=np.arange(1, len(x) + 1))).reset_index(drop=True)
+                        events_filtered = fp_filter_events(
+                            events, events_of_interest)
                         flag_events_filtered = 1
                     else:
                         # print("[-] extracted_to_processed: * NO SPECIFICED EVENTS IN log_fp$events_of_interest *")
@@ -1048,29 +1186,36 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
                 print("[-] extracted_to_processed: * no TDT epocs file exists")
 
             # If there are manual time stamps, read and join with filtered events
-            events_manual_fn = key_file['events_manual_fn']  # get events_manual_fn
+            # get events_manual_fn
+            events_manual_fn = key_file['events_manual_fn']
 
             if not pd.isna(events_manual_fn):
                 # print(f"   ~ sourcing events from manual file: {events_manual_fn}")
 
                 events_manual = pd.read_csv(events_manual_fn)
-                events_manual = events_manual[events_manual['blockname'] == blockname_process].assign(event_id_ttl="manual")
+                events_manual = events_manual[events_manual['blockname'] == blockname_process].assign(
+                    event_id_ttl="manual")
 
                 if events_manual.empty:
-                    print("[-] extracted_to_processed: * NO EVENTS DETECTED in specified manual file *")
+                    print(
+                        "[-] extracted_to_processed: * NO EVENTS DETECTED in specified manual file *")
                 else:
-                    events_manual_filtered = fp_filter_events(events_manual, events_of_interest)
+                    events_manual_filtered = fp_filter_events(
+                        events_manual, events_of_interest)
 
                     if flag_events_filtered:
-                        events = pd.concat([events, events_manual], ignore_index=True)
-                        events_filtered = pd.concat([events_filtered, events_manual_filtered], ignore_index=True)
+                        events = pd.concat(
+                            [events, events_manual], ignore_index=True)
+                        events_filtered = pd.concat(
+                            [events_filtered, events_manual_filtered], ignore_index=True)
                     else:
                         events = events_manual
                         events_filtered = events_manual_filtered
                         flag_events_filtered = 1
 
                     if events_manual_filtered.empty:
-                        print("[-] extracted_to_processed: * manual events file found but no events made it through filter")
+                        print(
+                            "[-] extracted_to_processed: * manual events file found but no events made it through filter")
 
             else:
                 # print("[-] extracted_to_processed: * no specified manual events file in log_fp")
@@ -1079,14 +1224,15 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
             if flag_events_filtered:
                 if events_filtered.empty:
                     flag_events_filtered = 0
-                    print("[-] extracted_to_processed: * no perievent time histogram: no filtered time stamps")
-
+                    print(
+                        "[-] extracted_to_processed: * no perievent time histogram: no filtered time stamps")
 
             # Perform perievent time histogram if there are events detected
             if flag_events_filtered:
                 # print(f" - computing peth for {len(events_filtered)} events")
 
-                events_filtered = events_filtered.groupby('event_id_char', group_keys=False).apply(lambda x: x.assign(event_number=np.arange(1, len(x) + 1))).reset_index(drop=True)
+                events_filtered = events_filtered.groupby('event_id_char', group_keys=False).apply(
+                    lambda x: x.assign(event_number=np.arange(1, len(x) + 1))).reset_index(drop=True)
 
                 streams_data_smoothed_fitted_peth_downsampled = fp_peri_event_time_histogram(
                     streams_data_smoothed_fitted,
@@ -1103,46 +1249,54 @@ def fp_preprocess(dir_extracted: str, dir_processed: str, log_fp: pd.DataFrame,
             if flag_multi_subject:
                 blockname_process = blockname_process_multi_subject
 
-                streams_data_smoothed_fitted_downsampled = streams_data_smoothed_fitted_downsampled.assign(blockname_multi_subject=blockname_process)
-                events = events.assign(blockname_multi_subject=blockname_process)
-                events_filtered = events_filtered.assign(blockname_multi_subject=blockname_process)
-                streams_data_smoothed_fitted_peth_downsampled = streams_data_smoothed_fitted_peth_downsampled.assign(blockname_multi_subject=blockname_process)
+                streams_data_smoothed_fitted_downsampled = streams_data_smoothed_fitted_downsampled.assign(
+                    blockname_multi_subject=blockname_process)
+                events = events.assign(
+                    blockname_multi_subject=blockname_process)
+                events_filtered = events_filtered.assign(
+                    blockname_multi_subject=blockname_process)
+                streams_data_smoothed_fitted_peth_downsampled = streams_data_smoothed_fitted_peth_downsampled.assign(
+                    blockname_multi_subject=blockname_process)
 
             # print(f"   ~ {blockname_process}_streams_session.feather")
- 
+
             # SAVE PROCESSED (ISOS-CORRECTED NORMALIZED, AND RAW) TRACE DATA
             streams_data_smoothed_fitted_downsampled.assign(blockname=blockname_process).to_feather(
-                os.path.join(dir_processed, f"{blockname_process}_streams_session.feather")
+                os.path.join(
+                    dir_processed, f"{blockname_process}_streams_session.feather")
             )
-            
-            streams_data_smoothed_fitted_downsampled.to_csv(os.path.join(dir_processed, f"{blockname_process}_streams_session.csv"))
+
+            streams_data_smoothed_fitted_downsampled.to_csv(os.path.join(
+                dir_processed, f"{blockname_process}_streams_session.csv"))
 
             if flag_events_filtered:  # Save events and peth if they exist
                 # print(f"   ~ {blockname_process}_events.feather")
 
                 events.assign(blockname=blockname_process).to_feather(
-                    os.path.join(dir_processed, f"{blockname_process}_events.feather")
+                    os.path.join(
+                        dir_processed, f"{blockname_process}_events.feather")
                 )
 
                 if len(events_filtered) > 0:
                     # print(f"   ~ {blockname_process}_events_peth.feather")
 
                     events_filtered.assign(blockname=blockname_process).to_feather(
-                        os.path.join(dir_processed, f"{blockname_process}_events_peth.feather")
+                        os.path.join(
+                            dir_processed, f"{blockname_process}_events_peth.feather")
                     )
 
                     # print(f"   ~ {blockname_process}_streams_peth.feather")
 
                     streams_data_smoothed_fitted_peth_downsampled.assign(blockname=blockname_process).reset_index().to_feather(
-                        os.path.join(dir_processed, f"{blockname_process}_streams_peth.feather")
+                        os.path.join(
+                            dir_processed, f"{blockname_process}_streams_peth.feather")
                     )
 
-            
-            
             # print("")
             # print("fp_preprocess() complete")
 
-    return streams_data_smoothed_fitted_downsampled 
+    return streams_data_smoothed_fitted_downsampled
+
 
 def main(extracted_directory, processed_directory, log_file_path):
     import chardet
@@ -1151,10 +1305,11 @@ def main(extracted_directory, processed_directory, log_file_path):
         result = chardet.detect(raw_data)
         encoding = result['encoding']
     fp_preprocess(
-        extracted_directory, 
-        processed_directory, 
-        pd.read_csv(log_file_path, encoding=encoding), 
+        extracted_directory,
+        processed_directory,
+        pd.read_csv(log_file_path, encoding=encoding),
         overwrite=1)
+
 
 if __name__ == "__main__":
     main(
