@@ -1,7 +1,5 @@
 # TDT Neuroscience Data Processor and Grapher
 
-## Introduction
-
 This repository contains code that processes raw data from TDT photometry experiments and saves graphs of the processed data.
 
 ## Directory Structure
@@ -34,7 +32,7 @@ This repository contains code that processes raw data from TDT photometry experi
         |                          #    e.g. `3653R_ipV`
         |                          # ⚠️ note, ONLY 1 underscore used in the name to separate the two parts
         |
-        +---📂 `raw`/               # directory containing that mouse's raw data from the
+        +---📂 raw/                 # directory containing that mouse's raw data from the
         |   |                       # TDT photometry device.
         |   |                       # ⚠️ Code currently assumes there will be three folders,
         |   |                       #    suffixed `_5hz`, `_10hz`, and `_20hz`.
@@ -50,10 +48,10 @@ This repository contains code that processes raw data from TDT photometry experi
         |       +-- VTAstimNAC-260301-110105_03242026_DATNAC_3653R_ipE_5hz.tnt
         |       +-- VTAstimNAC-260301-110105_03242026_DATNAC_3653R_ipE_5hz.tsq
         |
-        +---📂🆕 `extracted`/     # NEW: directory will be automatically created when `main.py` is run
+        +---📂🆕 extracted/       # NEW: directory will be automatically created when `main.py` is run
         |                        # Contains `mouse_experiment`'s extracted data
         |
-        +---📂🆕 `processed`/     # NEW: directory will be automatically created when `main.py` is run
+        +---📂🆕 processed/       # NEW: directory will be automatically created when `main.py` is run
         |                        # Contains `mouse_experiment`'s processed data
         |
         +---📄🆕 log_`mouse_experiment`.csv  # NEW: file will be automatically created when `main.py` is run
