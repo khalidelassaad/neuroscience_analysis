@@ -40,6 +40,10 @@ This repository contains code that processes raw data from TDT photometry experi
         |   |
         |   +---📂 03242026_DATNAC_3653R_ipE_5hz   # example folder and example contents,
         |       |                                  # showing expected name structures.
+        |       |     # ⚠️ Note! These folder names are structured as follows:
+        |       |     #     <MMDDYYYY>_<subject_prefix>_<mouse_name>_<experiment_name>_<laser_frequency>
+        |       |     # ⚠️ Make note of the `subject_prefix`, in this case `DATNAC`,
+        |       |     #     You will be required to pass it as a parameter in `main.py`
         |       |
         |       +-- VTAstimNAC-260301-110105_03242026_DATNAC_3653R_ipE_5hz.Tbk
         |       +-- VTAstimNAC-260301-110105_03242026_DATNAC_3653R_ipE_5hz.Tdk
@@ -76,10 +80,14 @@ pip install -r requirements.txt
 
 If you are using `anaconda`, the majority of packages inside `requirements.txt` should already be installed in your `(base)` environment. You may only need to install the `tdt` package.
 
-### 2. Run `main.py`
+### 2. Edit `main.py`
 
-Simply run the command `python main.py`
+Modify the arguments `date_folder` and `subject_prefix` passed to `DateFolderMultiExperimentProcessor` at the bottom of `main.py` to reflect your data and files.
 
-### 3. Enjoy your graphs!
+### 3. Run `main.py`
+
+Run the command `python main.py`
+
+### 4. Enjoy your graphs!
 
 Graphs will be saved in a directory called `graphs`, grouped by date.
