@@ -9,14 +9,21 @@ CSV_ROW_TEMPLATE_STRING = "VTAstimNAC,{},{},dopamine,{},1,NA,laser_onset,NA,NA,N
 
 
 class DateFolderMultiExperimentProcessor:
-    def __init__(self, date_folder):
+    def __init__(self, date_folder,
+                 meta_variable_name, meta_variable_type, meta_variable_unit, meta_variable_processor_function):
         self.date_folder = date_folder
+        self.meta_variables_set = set()
+        self.meta_variable_name = meta_variable_name
+        self.meta_variable_type = meta_variable_type
+        self.meta_variable_unit = meta_variable_unit
+        self.meta_variable_processor_function = meta_variable_processor_function
 
     def generate_csv_row(self, mouse_experiment_path, raw_experiment_path):
         blockname = raw_experiment_path.name
         blockname_parts = blockname.split("_")
         date_string = blockname_parts[0]
         subject_prefix = blockname_parts[1]
+        self.meta_variables_set.add(blockname_parts[-1])
         date_object = datetime.strptime(date_string, "%m%d%Y")
         csv_date_string = datetime.strftime(date_object, "%-m/%-d/%y")
         mouse_experiment = mouse_experiment_path.name
@@ -59,18 +66,38 @@ class DateFolderMultiExperimentProcessor:
                 date_folder=self.date_folder,
                 mouse_experiment_name=mouse_experiment_path.name,
                 should_save_graphs=True,
-                should_show_graphs=False)
+                should_show_graphs=False,
+                meta_variable_name=self.meta_variable_name,
+                meta_variable_type=self.meta_variable_type,
+                meta_variable_unit=self.meta_variable_unit,
+                meta_variable_processor_function=self.meta_variable_processor_function)
             single_experiment_graph_maker.make_all_graphs()
         multi_experiment_graph_maker = MultiExperimentGraphMaker(
             date_folder=self.date_folder,
             should_save_graphs=True,
-            should_show_graphs=False)
+            should_show_graphs=False,
+            meta_variable_name=self.meta_variable_name,
+            meta_variable_type=self.meta_variable_type,
+            meta_variable_unit=self.meta_variable_unit,
+            meta_variable_processor_function=self.meta_variable_processor_function)
         multi_experiment_graph_maker.make_all_graphs()
 
 
 if __name__ == "__main__":
+    def get_frequency_from_experiment_name(filename, meta_variable_unit, meta_variable_type):
+        split_filename_list = filename.split("_")
+        for file_name_part in split_filename_list:
+            if meta_variable_unit.lower() not in file_name_part.lower():
+                continue
+            meta_variable_string = file_name_part[:-2]
+            return meta_variable_type(meta_variable_string)
+
     dfmep = DateFolderMultiExperimentProcessor(
         date_folder=Path(
-            f"/Users/khalid/neuroscience_analysis/experiment_data/03242026"))
+            f"/Users/khalid/neuroscience_analysis/experiment_data/03242026"),
+        meta_variable_name="frequency",
+        meta_variable_type=int,
+        meta_variable_unit="Hz",
+        meta_variable_processor_function=get_frequency_from_experiment_name)
     dfmep.process_data_for_all_experiments()
     dfmep.make_graphs_for_all_experiments()

@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import scipy
 import seaborn as sns
+import inspect
 
 from utils import get_child_folders
 
@@ -13,12 +14,25 @@ class BaseGraphMaker:
     STREAM_FILES_DIRECTORY = "processed"
     EPOC_FILES_DIRECTORY = "extracted"
 
-    def __init__(self, date_folder, should_save_graphs, should_show_graphs):
+    def __init__(self, date_folder, should_save_graphs, should_show_graphs, meta_variable_name, meta_variable_type, meta_variable_unit, meta_variable_processor_function):
         self.date_folder = date_folder
         self.should_save_graphs = should_save_graphs
         self.should_show_graphs = should_show_graphs
         self.save_directory = (self.date_folder / ".." /
                                ".." / "graphs" / self.date_folder.name).resolve()
+        self.meta_variable_name = meta_variable_name
+        self.meta_variable_type = meta_variable_type
+        self.meta_variable_unit = meta_variable_unit
+        num_args_meta_variable_processor_function = len(
+            inspect.signature(meta_variable_processor_function).parameters)
+        if num_args_meta_variable_processor_function == 1:
+            self.meta_variable_processor_function = meta_variable_processor_function
+        elif num_args_meta_variable_processor_function == 3:
+            self.meta_variable_processor_function = lambda filename: meta_variable_processor_function(
+                filename, meta_variable_unit, meta_variable_type)
+        else:
+            raise ValueError(
+                f"Expected num_args_meta_variable_processor_function to take 1 or 3 args, got {num_args_meta_variable_processor_function}")
 
     def extract_aligned(self, df, t0, t_window):
         t_rel = df['time'].to_numpy() - t0
@@ -45,31 +59,23 @@ class BaseGraphMaker:
 
 
 class SingleExperimentGraphMaker(BaseGraphMaker):
-    def __init__(self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs):
+    def __init__(self, date_folder, mouse_experiment_name, should_save_graphs, should_show_graphs, meta_variable_name, meta_variable_type, meta_variable_unit, meta_variable_processor_function):
         BaseGraphMaker.__init__(
-            self, date_folder, should_save_graphs, should_show_graphs)
+            self, date_folder, should_save_graphs, should_show_graphs, meta_variable_name, meta_variable_type, meta_variable_unit, meta_variable_processor_function)
         self.mouse_experiment_name = mouse_experiment_name
         self.mouse_data_directory = date_folder / self.mouse_experiment_name
-
-    def get_frequency_from_experiment_name(self, filename):
-        split_filename_list = filename.split("_")
-        for file_name_part in split_filename_list:
-            if "hz" not in file_name_part.lower():
-                continue
-            frequency_string = file_name_part[:-2]
-            return int(frequency_string)
 
     def get_data_dicts(self):
         return_data_dicts = []
         stream_files = list(self.mouse_data_directory.glob(
             f"{SingleExperimentGraphMaker.STREAM_FILES_DIRECTORY}/*{SingleExperimentGraphMaker.STREAM_FILES_SUFFIX}"))
-        stream_files.sort(key=lambda file_path_object: self.get_frequency_from_experiment_name(
+        stream_files.sort(key=lambda file_path_object: self.meta_variable_processor_function(
             file_path_object.name))
         for stream_file_path in stream_files:
             stream_dataframe = pd.read_feather(stream_file_path)
             experiment_name = stream_file_path.name.replace(
                 SingleExperimentGraphMaker.STREAM_FILES_SUFFIX, "")
-            frequency = self.get_frequency_from_experiment_name(
+            meta_variable_value = self.meta_variable_processor_function(
                 experiment_name)
             epoc_file_path = self.mouse_data_directory / SingleExperimentGraphMaker.EPOC_FILES_DIRECTORY / \
                 (experiment_name + SingleExperimentGraphMaker.EPOC_FILES_SUFFIX)
@@ -77,7 +83,7 @@ class SingleExperimentGraphMaker(BaseGraphMaker):
             return_data_dicts.append(
                 {
                     "experiment_name": experiment_name,
-                    "frequency": frequency,
+                    self.meta_variable_name: meta_variable_value,
                     "stream_dataframe": stream_dataframe,
                     "epoc_dataframe": epoc_dataframe
                 }
@@ -92,7 +98,7 @@ class SingleExperimentGraphMaker(BaseGraphMaker):
         ax.set_ylabel('delta_signal_poly_zscore (offset)')
         ax.grid(True, alpha=0.3)
         self.save_and_show_graph(
-            f"{self.mouse_experiment_name}_{data_dict["frequency"]}hz_z_score_over_time")
+            f"{self.mouse_experiment_name}_{data_dict[self.meta_variable_name]}{self.meta_variable_unit.lower()}_z_score_over_time")
 
     def graph_z_score_and_laser_bursts_over_time(self, data_dict):
         ax = data_dict["stream_dataframe"].plot(
@@ -100,7 +106,7 @@ class SingleExperimentGraphMaker(BaseGraphMaker):
             y="delta_signal_poly_zscore",
             figsize=(20, 5)
         )
-        graph_title = f"{data_dict["frequency"]} Hz"
+        graph_title = f"{data_dict[self.meta_variable_name]} {self.meta_variable_unit}"
         ax.set_title(graph_title)
         ax.set_xlabel('time')
         ax.set_ylabel('delta_signal_poly_zscore (offset)')
@@ -108,17 +114,17 @@ class SingleExperimentGraphMaker(BaseGraphMaker):
         epoc_dataframe = data_dict["epoc_dataframe"]
         epocs = epoc_dataframe[epoc_dataframe['name'] == "PtC0"]
         number_of_pulses = 20
-        burst_duration = number_of_pulses / data_dict["frequency"]
+        burst_duration = number_of_pulses / data_dict[self.meta_variable_name]
         for _, row in epocs.iterrows():
             ax.axvspan(row['onset'], row['onset'] +
                        burst_duration, color='red', alpha=0.6)
         self.save_and_show_graph(
-            f"{self.mouse_experiment_name}_{data_dict["frequency"]}hz_z_score_and_laser_bursts_over_time")
+            f"{self.mouse_experiment_name}_{data_dict[self.meta_variable_name]}{self.meta_variable_unit.lower()}_z_score_and_laser_bursts_over_time")
 
     def graph_z_score_with_trials(self, data_dict):
         stream_dataframe = data_dict["stream_dataframe"]
         epoc_dataframe = data_dict["epoc_dataframe"]
-        frequency = data_dict["frequency"]
+        frequency = data_dict[self.meta_variable_name]
         epocs = epoc_dataframe[epoc_dataframe["name"] == "PtC0"]
         t_pre = 5.0
         t_post = 40
@@ -139,18 +145,18 @@ class SingleExperimentGraphMaker(BaseGraphMaker):
         ax.axvline(0, color='k', linestyle='--', linewidth=1)
         ax.set_xlabel('Time from Opto Stim(s)')
         ax.set_ylabel('Z-score')
-        graph_title = f"{frequency} Hz"
+        graph_title = f"{frequency} {self.meta_variable_unit}"
         ax.set_title(graph_title)
         ax.legend(loc='upper right', frameon=False)
         sns.despine()
         plt.tight_layout()
         self.save_and_show_graph(
-            f"{self.mouse_experiment_name}_{data_dict["frequency"]}hz_z_score_with_trials")
+            f"{self.mouse_experiment_name}_{data_dict[self.meta_variable_name]}{self.meta_variable_unit.lower()}_z_score_with_trials")
 
     def graph_all_z_scores_overlaid(self, data_dicts):
         _, ax = plt.subplots(figsize=(3, 3))
-        colors = ['#377eb8', '#ff7f00', '#4daf4a']
         for i, data_dict in enumerate(data_dicts):
+            color = f"C{i}"
             stream_dataframe = data_dict["stream_dataframe"]
             epoc_dataframe = data_dict["epoc_dataframe"]
             epocs = epoc_dataframe[epoc_dataframe["name"] == "PtC0"]
@@ -167,9 +173,9 @@ class SingleExperimentGraphMaker(BaseGraphMaker):
             R_mean = np.nanmean(R_trials, axis=0)
             R_sem = np.nanstd(R_trials, axis=0) / np.sqrt(R_trials.shape[0])
             ax.plot(t_window, R_mean,
-                    label=f"{data_dict["frequency"]} Hz", color=colors[i])
+                    label=f"{data_dict[self.meta_variable_name]} {self.meta_variable_unit}", color=color)
             ax.fill_between(t_window, R_mean - R_sem, R_mean + R_sem,
-                            alpha=0.2, color=colors[i])
+                            alpha=0.2, color=color)
         ax.axvline(0, color='k', linestyle='--', linewidth=1)
         ax.set_xlabel('Time from Opto Stim(s)')
         ax.set_ylabel('Z-score')
@@ -196,9 +202,9 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
     # There should only be ONE underscore in the folder name
     BAR_WIDTH = 0.25
 
-    def __init__(self, date_folder, should_save_graphs, should_show_graphs):
+    def __init__(self, date_folder, should_save_graphs, should_show_graphs, meta_variable_name, meta_variable_type, meta_variable_unit, meta_variable_processor_function):
         BaseGraphMaker.__init__(
-            self, date_folder, should_save_graphs, should_show_graphs)
+            self, date_folder, should_save_graphs, should_show_graphs, meta_variable_name, meta_variable_type, meta_variable_unit, meta_variable_processor_function)
         self.mouse_experiment_names = [
             folder.name for folder in get_child_folders(self.date_folder)]
         self.mouse_experiments_dict = {}
@@ -210,7 +216,11 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
                 date_folder=self.date_folder,
                 mouse_experiment_name=mouse_experiment_name,
                 should_save_graphs=False,
-                should_show_graphs=False)
+                should_show_graphs=False,
+                meta_variable_name=meta_variable_name,
+                meta_variable_type=meta_variable_type,
+                meta_variable_unit=meta_variable_unit,
+                meta_variable_processor_function=meta_variable_processor_function)
             data_dicts = graph_maker.get_data_dicts()
             self.mouse_experiments_dict[mouse_name][experiment_name] = data_dicts
         self.calculate_amplitude_for_all_experiments()
@@ -255,7 +265,7 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
             for experiment_name, data_dicts in experiments_dict.items():
                 for data_dict in data_dicts:
                     amplitude = data_dict["amplitude"]
-                    frequency = data_dict["frequency"]
+                    frequency = data_dict[self.meta_variable_name]
                     if self.experiment_frequency_data_dict.get(experiment_name) is None:
                         self.experiment_frequency_data_dict[experiment_name] = {
                         }
@@ -283,7 +293,7 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
                 x_positions[frequency_index] + graph_offset,
                 data_dict["mean"],
                 linewidth=1,
-                label=f"{frequency} Hz",
+                label=f"{frequency} {self.meta_variable_unit}",
                 yerr=data_dict["sem"],
                 capsize=5,
                 width=MultiExperimentGraphMaker.BAR_WIDTH,
@@ -371,7 +381,7 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
             amplitude_lists = list(map_experiment_to_amplitudes.values())
             t_stat, p_value = scipy.stats.ttest_ind(*amplitude_lists)
             print(
-                f"\t{frequency}Hz:\tt_stat: {t_stat:.5f}\tp_value: {p_value:.5f}")
+                f"\t{frequency}{self.meta_variable_unit}:\tt_stat: {t_stat:.5f}\tp_value: {p_value:.5f}")
             graph_string = self._get_graph_string_from_p_value(p_value)
             frequency_index = self.frequencies.index(frequency)
             plt.text(
@@ -395,7 +405,8 @@ class MultiExperimentGraphMaker(BaseGraphMaker):
                              experiment_index, experiment_name)
         for mouse_name in self.mouse_names:
             self._graph_dots_and_lines(self.experiment_names, mouse_name)
-        plt.xlabel('Frequency (Hz)', fontsize=12)
+        plt.xlabel(
+            f'{self.meta_variable_name.capitalize()} ({self.meta_variable_unit})', fontsize=12)
         plt.ylabel('Z-score difference', fontsize=12)
         plt.ylim(0, 10)
         # plt.title(f"{self.date_folder.name}", fontsize=12)
