@@ -53,7 +53,7 @@ class DateFolderMultiExperimentProcessor:
             self.process_data_for_single_experiment(
                 mouse_experiment_path.name, csv_path)
 
-    def make_all_graphs(self):
+    def make_graphs_for_all_experiments(self):
         for mouse_experiment_path in get_child_folders(self.date_folder):
             single_experiment_graph_maker = SingleExperimentGraphMaker(
                 date_folder=self.date_folder,
@@ -67,13 +67,11 @@ class DateFolderMultiExperimentProcessor:
             should_show_graphs=False)
         multi_experiment_graph_maker.make_all_graphs()
 
-    def process_and_graph_data(self):
-        self.process_data_for_all_experiments()
-        self.make_all_graphs()
-
 
 if __name__ == "__main__":
-    DateFolderMultiExperimentProcessor(
+    dfmep = DateFolderMultiExperimentProcessor(
         date_folder=Path(
             f"/Users/khalid/neuroscience_analysis/experiment_data/03242026"),
-        subject_prefix="DATNAC").process_and_graph_data()
+        subject_prefix="DATNAC")
+    dfmep.process_data_for_all_experiments()
+    dfmep.make_graphs_for_all_experiments()
