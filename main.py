@@ -9,18 +9,18 @@ CSV_ROW_TEMPLATE_STRING = "VTAstimNAC,{},{},dopamine,{},1,NA,laser_onset,NA,NA,N
 
 
 class DateFolderMultiExperimentProcessor:
-    def __init__(self, date_folder, subject_prefix):
+    def __init__(self, date_folder):
         self.date_folder = date_folder
-        self.subject_prefix = subject_prefix
 
     def generate_csv_row(self, mouse_experiment_path, raw_experiment_path):
         blockname = raw_experiment_path.name
         blockname_parts = blockname.split("_")
         date_string = blockname_parts[0]
+        subject_prefix = blockname_parts[1]
         date_object = datetime.strptime(date_string, "%m%d%Y")
         csv_date_string = datetime.strftime(date_object, "%-m/%-d/%y")
         mouse_experiment = mouse_experiment_path.name
-        subject = f"{self.subject_prefix}_{mouse_experiment}"
+        subject = f"{subject_prefix}_{mouse_experiment}"
         csv_row = CSV_ROW_TEMPLATE_STRING.format(
             subject, csv_date_string, blockname)
         return csv_row
@@ -71,7 +71,6 @@ class DateFolderMultiExperimentProcessor:
 if __name__ == "__main__":
     dfmep = DateFolderMultiExperimentProcessor(
         date_folder=Path(
-            f"/Users/khalid/neuroscience_analysis/experiment_data/03242026"),
-        subject_prefix="DATNAC")
+            f"/Users/khalid/neuroscience_analysis/experiment_data/03242026"))
     dfmep.process_data_for_all_experiments()
     dfmep.make_graphs_for_all_experiments()

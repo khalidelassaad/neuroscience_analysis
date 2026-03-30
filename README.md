@@ -8,6 +8,8 @@ This repository contains code that processes raw data from TDT photometry experi
 
 ⚠️ Make sure your data is correctly organized as outlined below before running any code!
 
+⚠️ This code uses the underscore character `_` as a field separator in file names. This is further explained in the diagram below. It is important that individual fields like `mouse_name`, `experiment_name`, or `subject_prefix` do NOT contain an underscore character inside them.
+
 ```
 📂 functions/                     # included in this repository
 
@@ -21,7 +23,7 @@ This repository contains code that processes raw data from TDT photometry experi
 +---📂 `date_folder`/              # directory containing data of multiple experiments.
     |                             # ⚠️ folder name MUST be exactly in MMDDYYYY format,
     |                             #     e.g. `03242026`.
-    |                             # The full path to this folder must be passed as an argument into the
+    |                             # ⚠️ The full path to this folder must be passed as an argument into the
     |                             # `DateFolderMultiExperimentProcessor` object's `date_folder` parameter
     |                             # at the bottom of `main.py`
     |
@@ -42,8 +44,7 @@ This repository contains code that processes raw data from TDT photometry experi
         |       |                                  # showing expected name structures.
         |       |     # ⚠️ Note! These folder names are structured as follows:
         |       |     #     <MMDDYYYY>_<subject_prefix>_<mouse_name>_<experiment_name>_<laser_frequency>
-        |       |     # ⚠️ Make note of the `subject_prefix`, in this case `DATNAC`,
-        |       |     #     You will be required to pass it as a parameter in `main.py`
+        |       |     # e.g. `03242026_DATNAC_3653R_ipE_5hz`
         |       |
         |       +-- VTAstimNAC-260301-110105_03242026_DATNAC_3653R_ipE_5hz.Tbk
         |       +-- VTAstimNAC-260301-110105_03242026_DATNAC_3653R_ipE_5hz.Tdk
@@ -82,7 +83,7 @@ If you are using `anaconda`, the majority of packages inside `requirements.txt` 
 
 ### 2. Edit `main.py`
 
-Modify the arguments `date_folder` and `subject_prefix` passed to `DateFolderMultiExperimentProcessor` at the bottom of `main.py` to reflect your data and files.
+Set the argument `date_folder` passed to `DateFolderMultiExperimentProcessor` at the bottom of `main.py` to point to your experiment data files.
 
 ### 3. Run `main.py`
 
